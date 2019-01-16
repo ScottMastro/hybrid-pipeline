@@ -1,0 +1,28 @@
+#!/bin/bash -x
+
+#PBS -l gres=localhd:10
+
+date
+pwd
+
+QUERY=$in.$from.$to
+
+from2=$((from*2))
+to2=$((to*2))
+
+sed -n "$((from2-1)),${to2}p;$((to2+1))q" $in > $QUERY
+
+mkdir -p ${dir}/alignments
+OUT=${dir}/alignments/blastn.vs_canu${from}.${to}.out
+
+module load blast+/2.7.1
+
+blastn \
+ -query $QUERY -db $db -out $OUT \
+ -outfmt 6' std qlen slen gaps qseq sseq sframe' \
+ -evalue 1e-35 \
+ -num_threads $threads \
+ -max_target_seqs 10 \
+ -max_hsps 5
+
+rm $QUERY
