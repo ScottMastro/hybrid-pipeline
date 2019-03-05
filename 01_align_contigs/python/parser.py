@@ -1,10 +1,11 @@
 import pandas as pd
-from pandas import ExcelWriter
+import csv
+csv.field_size_limit(999999999999)
 
-def read(csv_file):
+def parse_alignments(csv_file):
     
     colnames = ["Query sequence ID", 
-                "Total number of parts",
+                "Total number of chunks",
                 "Subject sequence ID",
                 "Subject sequence length",
                 "Parts aligning to subject sequence", 
@@ -21,14 +22,14 @@ def read(csv_file):
 
 
 def line2df(line):
-    contig=line.iloc[0,0]
-    n_chunks=line.iloc[0,1]
-    chrom=line.iloc[0,2]
-    chunks=[x for x in line.iloc[0,4].split(',')]
-    starts=[x for x in line.iloc[0,5].split(',')]
-    ends=[x for x in line.iloc[0,6].split(',')]
-    qends=[x for x in line.iloc[0,7].split(',')]
-    qstarts=[x for x in line.iloc[0,8].split(',')]
+    contig=str(line.iloc[0,0])
+    n_chunks=int(line.iloc[0,1])
+    chrom=str(line.iloc[0,2])
+    chunks=[int(x) for x in line.iloc[0,4].split(',')]
+    starts=[int(x) for x in line.iloc[0,5].split(',')]
+    ends=[int(x) for x in line.iloc[0,6].split(',')]
+    qends=[int(x) for x in line.iloc[0,7].split(',')]
+    qstarts=[int(x) for x in line.iloc[0,8].split(',')]
 
     row_df=pd.DataFrame(pd.to_numeric(chunks))
     row_df.columns=["chunk"]
