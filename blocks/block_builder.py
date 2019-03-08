@@ -1,8 +1,6 @@
 import numpy as np
-import alignment_chunk as chunker
-import alignment_block as blocker
-import alignment_megablock as mblocker
-import alignment_contig as contiger
+import block_constructor as blocker
+import plot_blocks as plotter
 
 from gfa_handler import GFA
 
@@ -82,8 +80,52 @@ def add_contig(contig, gfa, isQuery=True):
     return gfa
 
 
+def plot(aligndf, qname):
+    
+    qdf = aligndf.loc[aligndf[str(aligndf.columns[0])] == qname]
+    
+    blockList=[]
+    trashList=[]
+    mblockList=[]
+    
+    #row=next(qdf.iterrows())[1]
+    for idx, row in qdf.iterrows():
+        
+        nchunks = int(row[1])
+
+        chunks = blocker.construct_chunks(row, chunkSize)
+        blocks, trash = blocker.construct_blocks(chunks)
+        
+        blockList.append(blocks)
+        trashList.append(trash)
+        
+        blocks = blocker.remove_redundancy(blocks, chunkPerBlock, repeatOverlap)            
+        mblocks = blocker.construct_megablocks(row, blocks, trash, nchunks*1000)
+
+        mblockList.append(mblocks)
+
+    contig = blocker.construct_contig(qname, nchunks*1000, mblockList, q=True)
+
+    contigList = []
+    for mblockSublist in mblockList:
+        newList = []
+        for mblock in mblockSublist:
+            if mblock in contig.mblocks:
+                newList.append(mblock)
+        contigList.append(newList)
+
+    plotter.plot_levels(blockList, trashList, mblockList, contigList, nchunks,
+                        step=500, outputPath="./plots/" + str(qname) )
+
 def create_blocks(aligndf, chunkSize=1000): #, qname):
 
+    qnames=np.unique(aligndf[str(aligndf.columns[0])])
+
+    for qname in qnames:
+        if(qname >= 40):
+            print("Plotting " + str(qname))
+            plot(aligndf, qname)
+    
     gfa = GFA()
     
     #add reference segments
@@ -93,7 +135,6 @@ def create_blocks(aligndf, chunkSize=1000): #, qname):
     #gfa.add_segments(aligndf[str(aligndf.columns[0])], 
     #                 aligndf[aligndf.columns[1]]*1000)
         
-    qnames=np.unique(aligndf[str(aligndf.columns[0])])
     
     megablocks = { str(name) : [] for name in qnames}
     contigs = []
@@ -102,23 +143,24 @@ def create_blocks(aligndf, chunkSize=1000): #, qname):
     for qname in qnames:
         #dataframe containing only alignments for one query contig
         qdf = aligndf.loc[aligndf[str(aligndf.columns[0])] == qname]
-        
+                
         #row=next(qdf.iterrows())[1]
         for idx, row in qdf.iterrows():
             
             qid = str(row[0]) 
             qlen = int(row[1])*chunkSize
-            rid = str(row[2])
 
-            chunks = chunker.construct_chunks(row, chunkSize)
-            blocks, trash = blocker.construct_blocks(rid, qid, chunks)
+            chunks = blocker.construct_chunks(row, chunkSize)
+            blocks, trash = blocker.construct_blocks(chunks)
+                        
             blocks = blocker.remove_redundancy(blocks, chunkPerBlock, repeatOverlap)            
-            mblocks = mblocker.construct_megablocks(row, blocks, trash, chunkSize, 1.5)
+            mblocks = blocker.construct_megablocks(row, blocks, trash)
+
             if len(mblocks) > 0:
                 megablocks[qid].extend(mblocks)
         
         print(qid)
-        contigs.append(contiger.construct_contig(qid, qlen, megablocks[qid], isQuery=True))
+        contigs.append(blocker.construct_contig(qid, qlen, megablocks[qid], isQuery=True))
         gfa = add_contig(contigs[-1], gfa, isQuery=True)
     
     gfa.write("hello.gfa")
@@ -139,7 +181,7 @@ if len(sys.argv) > 1 :
     summary_file=sys.argv[1]  #input
     block_file = sys.argv[2]  #output
 else:
-    #prefix="C:/Users/scott/Desktop/novafix/blocks"
+    #prefix="C:/Users/scott/Dropbox/hybrid-pipeline/blocks"
     prefix="/home/scott/Dropbox/hybrid-pipeline/blocks"
     summary_file = prefix + "/summary.txt"
     block_file = prefix + "/blocks_new.txt"
