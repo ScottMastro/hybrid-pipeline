@@ -57,24 +57,6 @@ class Interval:
     def overlapping(self, other, q=True):
         return self.right(q) >= other.left(q) and self.left(q) <= other.right(q)
     
-    '''
-    def __eq__(self, other):
-        if not self.sorted: self.sort()
-        if not other.sorted: other.sort()
-
-        if len(self.components) != len(other.components):
-            return False
-        if len(self.rid) != len(other.rid):
-            return False
-        if len(self.qid) != len(other.qid):
-            return False
-
-        for c1, c2 in zip(self.components, other.components):
-            if not c1.__eq__(c2):
-                return False
-            
-        return True
-    '''
     def __len__(self):
         return len(self.components)
     
@@ -132,17 +114,7 @@ class Chunk(Interval):
     def span(self, q=True): 
         if q: return abs(self.qstart - self.qend)
         return abs(self.rstart - self.rend)
-    
-    '''
-    def __eq__(self, other):
-        if len(self.cid) != len(self.cid): return False
-        if len(self.rid) != len(other.rid): return False
-        if len(self.qid) != len(other.qid): return False
-        if len(self.qstart) != len(other.qstart): return False
-        if len(self.qend) != len(other.qend): return False
-        if len(self.rstart) != len(other.rstart): return False
-        if len(self.rend) != len(other.rend): return False
-    '''
+
     def __repr__(self):
         return str(self.id) +  " (" + str(self.qstart) + "-" + str(self.qend) + ")"
 

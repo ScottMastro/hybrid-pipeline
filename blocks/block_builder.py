@@ -1,190 +1,230 @@
-import numpy as np
-import block_constructor as blocker
-import plot_blocks as plotter
+import blocktree as bt
+from math import log
+from intervals import Chunk
+from intervals import Block
+from intervals import Megablock
+from intervals import Contig
 
-from gfa_handler import GFA
-
-def distance(chunk1, chunk2):
-    return min(abs(chunk1.left() - chunk2.right()) )
+def construct_chunks(row, param):
+    '''
+    Takes a row from the aligndf file, creates chunks.
+    '''
+    qid=row[0]
+    rid=row[2]
+    cid=[int(x) for x in row[4].split(',')]
+    rst=[int(x) for x in row[5].split(',')]
+    red=[int(x) for x in row[6].split(',')]
+    qst=[int(x) for x in row[7].split(',')]
+    qed=[int(x) for x in row[8].split(',')]
     
+    #convert start/end position from chunk to contig
+    qst=[(i-1)*param.CHUNK_SIZE + s for i, s in zip(cid, qst)]
+    qed=[(i)*param.CHUNK_SIZE - (param.CHUNK_SIZE-e) for i, e in zip(cid, qed)]
+    return [Chunk(cid[i], rst[i], red[i], qst[i], qed[i], qid, rid) for i in range(0, len(cid))]
 
+def construct_blocks(chunks, param):
+    '''
+    Takes a list of chunks and connects them into blocks.
+    Valid blocks are returned, leftover chunks are returned in trash.
+    '''
+    blocks = []
+    trash = []
 
-
-def count_chunk_alignments(qdf, qname):
-    nchunk = qdf.iloc[0,1]
-    countDict = {n+1 : 0 for n in range(nchunk)}
-    
-    for row in qdf[str(qdf.columns[4])]:
-        chunkIds=[int(i) for i in row.split(',')]
-        for n in chunkIds:
-            countDict[n] = countDict[n] + 1     
-            
-    import matplotlib.pylab as plt
-    lists = sorted(countDict.items()) # sorted by key, return a list of tuples  
-    x, y = zip(*lists) # unpack a list of pairs into two tuples
-    plt.figure(figsize=(30,8))
-    plt.plot(x, y)
-    plt.show()
-    return countDict
-    
-tab="\t"
-
-
-def add_containments(contig, gfa, isQuery=True):
-    
-    for mblock in contig.mblocks:
-        if isQuery:
-            gfa.add_containment(contig.id, mblock.rid, mblock.left_q(), mblock.size_q())
-        else:
-            gfa.add_containment(contig.id, mblock.qid, min(mblock.left_r(), mblock.right_r()), mblock.size_r())
-            
-    return gfa
-    
-def add_contig(contig, gfa, isQuery=True):
-    
-    if(contig.is_empty()):
-        gfa.add_segment(contig.id, contig.size, depth=1)
-        return gfa
-
-    index = 1
-    
-    for i in range(len(contig.mblocks)):
-
-        if isQuery:
-            
-            if i == 0:
-                size=contig.mblocks[i].left_q() 
-                gfa.add_segment(contig.id + "_" + str(index), size, depth=1)
-                index = index + 1
+    while len(chunks) > 0:
+         
+        i = 0
+        chunk = chunks.pop()
+        block = Block(chunk)
                 
-            size=abs(contig.mblocks[i].right_q() - contig.mblocks[i].left_q())
+        while i < len(chunks):
+
+            i=i+1
+            nextChunk = chunks[-i]
+            idDist = chunk.id - nextChunk.id
+            idSkip = idDist-1
+            allowableGap = max(param.MAX_DIST_CHUNK, idSkip*param.CHUNK_SKIP_BP)
+            bpDist = abs(chunk.rstart - nextChunk.rstart) - param.CHUNK_SIZE
+
+            #chunk id improper
+            if idDist < 1: continue         
+            if idSkip > param.CHUNK_SKIP: break
             
-            gfa.add_segment(contig.id + "_" + str(index), size, depth=1)
-            gfa.add_segment(contig.mblocks[i].rid + "_" + contig.id, size, depth=10)
-            gfa.add_link(contig.id + "_" + str(index-1), contig.id + "_" + str(index))
-            gfa.add_link(contig.id + "_" + str(index-1), contig.mblocks[i].rid + "_" + contig.id)
-
-            index = index + 1            
+            #bp gap too big
+            if bpDist > allowableGap:
+                continue
             
-            size= (contig.size if i == (len(contig.mblocks)-1) else contig.mblocks[i+1].left_q()) - contig.mblocks[i].right_q()
-            gfa.add_segment(contig.id + "_" + str(index), size, depth=1)
+            #chunk oriented incorrectly
+            if not block.verify_direction(nextChunk):
+                continue
+            
+            #all good, add chunk and remove from list
+            block.add(nextChunk)
+            chunk = chunks.pop(-i)
+            i=i-1
 
-            gfa.add_link(contig.id + "_" + str(index-1), contig.id + "_" + str(index))
-            gfa.add_link(contig.mblocks[i].rid + "_" + contig.id, contig.id + "_" + str(index))
-            index = index + 1            
-
+            if len(chunks) == 0:
+                break
+            
+        if(block.nchunk() > param.CHUNK_PER_BLOCK):
+            blocks.append(block)
         else:
-            #todo
-            pass
+            trash.append(block)
+        
+    blocks.sort()
+    trash.sort()
+    return (blocks, trash)
+
+def can_collapse(node1, node2, distCutoff=1.5, pseudocount=0, printout=False):
+    
+    if(printout):
+        print("=====================\nleft=" + node1.__repr__())
+        print("right=" + node2.__repr__())
+
+    q=True
+    if (node1.left_pos(q) + node1.right_pos(q)) < \
+        (node2.left_pos(q) + node2.right_pos(q)):
+            leftNode, rightNode = node1, node2
+    else:
+        leftNode, rightNode = node2, node1
+        
+    qdist = rightNode.left_pos(q) - leftNode.right_pos(q)
+
+    q=False
+
+    if (node1.left_pos(q) + node1.right_pos(q)) < \
+        (node2.left_pos(q) + node2.right_pos(q)):
+            leftNode, rightNode = node1, node2
+    else:
+        leftNode, rightNode = node2, node1
+        
+    rdist = rightNode.left_pos(q) - leftNode.right_pos(q)
+    
+    if qdist >= 0:
+        if rdist >= 0:
+            #no overlap
+            num = abs(qdist) + pseudocount
+            denom = abs(rdist) + pseudocount
+        else:
+            #ref overlaps
+            num = abs(qdist) + pseudocount
+            denom = abs(rdist) + abs(qdist) + pseudocount
+    elif rdist >= 0:
+        #query overlaps
+        num = abs(qdist) + abs(rdist) + pseudocount
+        denom = abs(rdist) + pseudocount
+    else:
+        #both overlap
+        num = abs(qdist) + pseudocount
+        denom = abs(qdist) + pseudocount
+
+    if printout:
+        print("qdist=" + str(qdist))
+        print("rdist=" + str(rdist))
+        print(str(num) + "/" + str(denom) + "=" + str(num*1.0/denom*1.0))
+        print(str(abs(log(num*1.0/denom*1.0))) + " vs " + str(log(distCutoff)))
+
+    return abs(log(num*1.0/denom*1.0)) < abs(log(distCutoff))
+        
+def construct_megablocks(blocks, length, param):
+
+    if len(blocks) < 1: return []
+
+    q=True
+    mblocks=[]
+    
+    while len(blocks) > 0:    
+        #constructs tree, largest blocks at top
+        sortedBlocks = sorted(blocks, key=lambda block: block.sum(q))
+        tree = bt.Node(sortedBlocks.pop())
+        while len(sortedBlocks) > 0:
+            node = bt.Node(sortedBlocks.pop())
+            tree.insert(node)
+        
+        collapseFn = lambda l, r : can_collapse(l, r, param.BLOCK_DIST_THRESH, length*0.05, printout=False)
+        
+        mblockNodes, mblockTrash = bt.traverse(tree, None, None, collapseFn)
+        
+        if len(mblockNodes) < 1:
+            continue
+        
+        mblock = Megablock([node.data for node in mblockNodes ])    
+        mblocks.append(mblock)
+        blocks = [node.data for node in mblockTrash ]
+        
+    return mblocks
+
+
+#todo:should we do this???
+def remove_redundancy(blocks, param):
+
+    i=0
+    while ( i < len(blocks)-1 ):
+        
+        x = blocks[i+1].left_id() - blocks[i].right_id()
+        
+        #no overlap
+        if x > 0:
+            i = i + 1 
+            continue
+        
+        #overlapping
+        if x <= 0:
+            #one repeated chunk
+            if x == 0:
+                overlapSize = blocks[i+1].right(q=True) - blocks[i].left(q=True)
+                overlapStart = blocks[i].right(q=True)
+                overlapEnd = blocks[i+1].left(q=True)
+                if abs((overlapEnd - overlapStart) / overlapSize) < param.CHUNK_OVERLAP:
+                    i = i + 1 
+                    continue
             
-    return gfa
+            #left block is bigger
+            if(blocks[i].nchunk() > blocks[i+1].nchunk()):
+                blocks[i+1].trim_left(-x + 1)
+                if(blocks[i+1].nchunk() < param.CHUNK_PER_BLOCK):
+                    blocks.pop(i+1)
+            #right block is bigger
+            else:
+                blocks[i].trim_right(-x + 1)
+                if(blocks[i].nchunk() < param.CHUNK_PER_BLOCK):
+                    blocks.pop(i)
+            
+    return blocks
 
 
-def plot(aligndf, qname):
-    
-    qdf = aligndf.loc[aligndf[str(aligndf.columns[0])] == qname]
-    
-    blockList=[]
-    trashList=[]
-    mblockList=[]
-    
-    #row=next(qdf.iterrows())[1]
-    for idx, row in qdf.iterrows():
+
+def megablock_collapse(node1, node2, overlapTolerance=0.01):
+   
+    dist = node2.left_pos() - node1.right_pos() 
+
+    #overlap
+    if dist < 0:
+        smaller= min(node1.span(), node2.span())
         
-        nchunks = int(row[1])
-
-        chunks = blocker.construct_chunks(row, chunkSize)
-        blocks, trash = blocker.construct_blocks(chunks)
-        
-        blockList.append(blocks)
-        trashList.append(trash)
-        
-        blocks = blocker.remove_redundancy(blocks, chunkPerBlock, repeatOverlap)            
-        mblocks = blocker.construct_megablocks(row, blocks, trash, nchunks*1000)
-
-        mblockList.append(mblocks)
-
-    contig = blocker.construct_contig(qname, nchunks*1000, mblockList, q=True)
-
-    contigList = []
-    for mblockSublist in mblockList:
-        newList = []
-        for mblock in mblockSublist:
-            if mblock in contig.mblocks:
-                newList.append(mblock)
-        contigList.append(newList)
-
-    plotter.plot_levels(blockList, trashList, mblockList, contigList, nchunks,
-                        step=500, outputPath="./plots/" + str(qname) )
-
-def create_blocks(aligndf, chunkSize=1000): #, qname):
-
-    qnames=np.unique(aligndf[str(aligndf.columns[0])])
-
-    for qname in qnames:
-        if(qname >= 40):
-            print("Plotting " + str(qname))
-            plot(aligndf, qname)
+        if abs(dist/smaller) > overlapTolerance:
+            return False
     
-    gfa = GFA()
-    
-    #add reference segments
-    #gfa.add_segments(aligndf[str(aligndf.columns[2])], 
-    #                 aligndf[aligndf.columns[3]])
-    #add query segments
-    #gfa.add_segments(aligndf[str(aligndf.columns[0])], 
-    #                 aligndf[aligndf.columns[1]]*1000)
-        
-    
-    megablocks = { str(name) : [] for name in qnames}
-    contigs = []
-    
-    #qname=0
-    for qname in qnames:
-        #dataframe containing only alignments for one query contig
-        qdf = aligndf.loc[aligndf[str(aligndf.columns[0])] == qname]
+    return True
                 
-        #row=next(qdf.iterrows())[1]
-        for idx, row in qdf.iterrows():
-            
-            qid = str(row[0]) 
-            qlen = int(row[1])*chunkSize
-
-            chunks = blocker.construct_chunks(row, chunkSize)
-            blocks, trash = blocker.construct_blocks(chunks)
-                        
-            blocks = blocker.remove_redundancy(blocks, chunkPerBlock, repeatOverlap)            
-            mblocks = blocker.construct_megablocks(row, blocks, trash)
-
-            if len(mblocks) > 0:
-                megablocks[qid].extend(mblocks)
-        
-        print(qid)
-        contigs.append(blocker.construct_contig(qid, qlen, megablocks[qid], isQuery=True))
-        gfa = add_contig(contigs[-1], gfa, isQuery=True)
+                
+def construct_contig(id, size, mblocks, param, q=True):
     
-    gfa.write("hello.gfa")
+    if len(mblocks) < 1:
+        return Contig(id, size, [])
     
-
-import sys
-import file_handler as fh
-#----globals-------------------------
-chunkSize = 1000
-chunkPerBlock = 3        #min chunks per block, theta1
-maxDist = 5000           #max dist between chunks, theta2
-chunkSkip = 2            #max chunk skip allowed, theta3
-bpSkip = 2000            #chunk skip size, theta4
-repeatOverlap = 0.25     #max overlap for a repeated chunk, theta5
-
-
-if len(sys.argv) > 1 :
-    summary_file=sys.argv[1]  #input
-    block_file = sys.argv[2]  #output
-else:
-    #prefix="C:/Users/scott/Dropbox/hybrid-pipeline/blocks"
-    prefix="/home/scott/Dropbox/hybrid-pipeline/blocks"
-    summary_file = prefix + "/summary.txt"
-    block_file = prefix + "/blocks_new.txt"
-
-index = 0
-aligndf = fh.parse_alignments(summary_file)   
+    sortedMblocks = sorted(mblocks, key=lambda mblock: mblock.sum(q))
+    tree = bt.Node(sortedMblocks.pop())
+    while len(sortedMblocks) > 0:
+        node = bt.Node(sortedMblocks.pop())
+        tree.insert(node)
+    
+    collapseFn = lambda l, r : megablock_collapse(l, r, param.MEGABLOCK_OVERLAP)
+    mblockNodes, trashNodes = bt.traverse(tree, None, None, collapseFn)
+    
+    if len(mblockNodes) < 1:
+        return Contig(id, size, [])
+    
+    contig = Contig(id, size, [node.data for node in mblockNodes])
+    #todo: recover trash???
+    
+    return contig
