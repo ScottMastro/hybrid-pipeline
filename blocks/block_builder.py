@@ -35,7 +35,7 @@ def construct_blocks(chunks, param):
         i = 0
         chunk = chunks.pop()
         block = Block(chunk)
-                
+
         while i < len(chunks):
 
             i=i+1
@@ -52,9 +52,9 @@ def construct_blocks(chunks, param):
             #bp gap too big
             if bpDist > allowableGap:
                 continue
-            
-            #chunk oriented incorrectly
-            if not block.verify_direction(nextChunk):
+
+            #chunk oriented incorrectly            
+            if not block.rdir == nextChunk.get_dir(q=False):
                 continue
             
             #all good, add chunk and remove from list

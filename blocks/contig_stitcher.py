@@ -11,7 +11,7 @@ def stitch_contig(aligndf, qname, param):
 
     mblockList=[]
     
-    #row=next(qdf.iterrows())[1]
+    #row=next(df.iterrows())[1]
     for idx, row in df.iterrows():
         
         nchunks = int(row[1])
@@ -23,7 +23,7 @@ def stitch_contig(aligndf, qname, param):
         mblocks = blocker.construct_megablocks(blocks, length, param)
         mblockList.extend(mblocks)
 
-    contig = blocker.construct_contig(qname, length, mblocks, param, q=True)
+    contig = blocker.construct_contig(qname, length, mblockList, param, q=True)
     return contig
 
 def plot(aligndf, qname, param):
@@ -76,7 +76,7 @@ def stitch_contigs(aligndf, param):
     contigs=dict()
     for qname in qnames:
         #print("Plotting " + str(qname))
-        #plot(aligndf, qname)
+        #plot(aligndf, qname, param)
         
         contigs[qname] = stitch_contig(aligndf, param)
         

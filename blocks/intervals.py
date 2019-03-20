@@ -57,6 +57,27 @@ class Interval:
     def overlapping(self, other, q=True):
         return self.right(q) >= other.left(q) and self.left(q) <= other.right(q)
     
+    def contains_position(self, basePosition, q=True): 
+        return basePosition >= self.left(q) and basePosition <= self.right(q)
+
+    def closest_corresponding_position(self, basePosition, q=True): 
+        if not self.sorted: self.sort()
+        
+        if self.contains_position(basePosition, q):
+            
+            distances = [min(abs(basePosition-component.start(q)), abs(basePosition-component.end(q))) \
+                         for component in self.components]
+            
+            index_min = min(range(len(distances)), key=distances.__getitem__)
+            return self.components[index_min].closest_corresponding_position(basePosition, q)
+
+        else:
+            if abs(basePosition-self.start(q)) < abs(basePosition-self.end(q)):
+                return self.start(not q)
+            else:
+                return self.end(not q)       
+        
+
     def __len__(self):
         return len(self.components)
     
@@ -114,6 +135,10 @@ class Chunk(Interval):
     def span(self, q=True): 
         if q: return abs(self.qstart - self.qend)
         return abs(self.rstart - self.rend)
+    
+    def closest_corresponding_position(self, basePosition, q=True): 
+        displacement = self.start(q) - basePosition
+        return self.start(not q) - displacement*self.get_dir(not q)
 
     def __repr__(self):
         return str(self.id) +  " (" + str(self.qstart) + "-" + str(self.qend) + ")"
@@ -130,10 +155,7 @@ class Block(Interval):
         super().__init__(chunk.qid, chunk.rid)        
         self.rdir=0
         self.add(chunk)
-        self.rdir=chunk.get_dir(q="False")
-        
-    def verify_direction(self, chunk): 
-        return self.rdir == chunk.get_dir(q="False")
+        self.rdir=chunk.get_dir(q=False)
     
     def trim_left(self, n):
         if not self.sorted: self.sort()
@@ -225,7 +247,4 @@ class Contig:
         return str(self.mblocks) 
 
     def __str__(self):
-        return "qid=" + str(self.qid) + " rid=" + str(self.rid) + \
-                " query=" + str(self.left_q()) + "-" + str(self.right_q()) + \
-                " reference=" + str(self.left_r()) + "-" + str(self.right_r()) + \
-                " nblocks=" + str(self.nblocks())
+        return "id=" + str(self.qid)

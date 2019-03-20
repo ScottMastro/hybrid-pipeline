@@ -8,7 +8,6 @@ from segment import pp
 import copy
 from contig_matrix import construct_matrix
 
-             
 def scaffold_left(novaId, canuId, novaSeq, canuSeq, canuPos, dir, align_buffer=1000, base_buffer=200):
 
     novaSeq_ = novaSeq[: min(align_buffer, len(novaSeq)-1)]
