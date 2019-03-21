@@ -87,7 +87,7 @@ def stitch_contigs(aligndf, param):
     return contigs
 
     
-
+'''
 import sys
 import file_handler as fh
 
@@ -102,3 +102,4 @@ else:
 
 index = 0
 aligndf = fh.parse_alignments(summary_file)   
+'''

@@ -17,12 +17,14 @@ if len(sys.argv) > 1 :
     canufa = sys.argv[4]      #canu fasta
 
 else:
-    #prefix="C:/Users/scott/Desktop/novafix/blocks"
     prefix="/home/scott/Dropbox/hybrid-pipeline/blocks"
+    #prefix="/media/scott/HDD/sickkids/blocks/"
     summary_file = prefix + "/summary.txt"
     block_file = prefix + "/blocks_new.txt"
     
     prefix = "/media/scott/Rotom/assembly_data/CF062/"
+    #prefix="/media/scott/HDD/sickkids/"
+
     novafa = prefix + "OSK7121_03C_supernova.pseudohap2.2.fasta"
     canufa = prefix + "CF062B2D.contigs.fasta.PILON2.fasta"
 
@@ -43,12 +45,15 @@ def main():
     print("Reading Supernova fasta")
     queryData = read_fa(novafa)    
     
+    seqData = {}
+    seqData.update(refData)
+    seqData.update(queryData)
+    lengthData = {x : len(str(seqData[x])) for x in seqData.keys()}
+    
     aligndf = reader.parse_alignments(summary_file)   
     #contigs = stitcher.stitch_contigs(aligndf, param)
-    contig = stitcher.stitch_contig(aligndf, 0, param)
-    #contig = fastener.fasten_contig(contig, refData, queryData, param)
-
-    
+    contig = stitcher.stitch_contig(aligndf, 6, param)
+    #contig = fastener.fasten_contig(contig, seqData, lengthData, param)   
 
     print(contig)
   
