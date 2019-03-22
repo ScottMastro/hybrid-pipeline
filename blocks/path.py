@@ -175,10 +175,10 @@ class Fork:
         return self.switch
 
     def flip_strands(self, lengthData):
-        #self.qpos = lengthData[str(self.qid)] - self.qpos
+        self.qpos = lengthData[str(self.qid)] - self.qpos
         self.qstrand = self.qstrand*(-1)
         
-        #self.rpos = lengthData[str(self.rid)] - self.rpos
+        self.rpos = lengthData[str(self.rid)] - self.rpos
         self.rstrand = self.rstrand*(-1)
 
     def get_pos(self, q=True):
@@ -202,6 +202,7 @@ class Fork:
 def clean_path(path, lengthData, verbose=False):
 
     cleanPath = Path()
+
     if len(path) < 1: return cleanPath
 
     startFork = path[0]
@@ -211,43 +212,54 @@ def clean_path(path, lengthData, verbose=False):
     for i in range(1, len(path)):
 
         endFork = path[i]
-        
+    
+        if verbose:
+            print("")
+            print("New pair:")
+            print(startFork)
+            print(endFork)
+
         if flipStrand:
             endFork.flip_strands(lengthData)
+            if verbose:
+                print("Flipping endFork:")
+                print(endFork)
             
-        if startFork.after_id() == endFork.before_id():
-            tigId = startFork.after_id()
-        else:
+        if startFork.after_id() != endFork.before_id():
             if verbose:
                 print("Excluding fork because IDs do not match:")
                 print(str(startFork) + " (try to match)")
                 print(str(endFork) + " (excluded)")
-
             continue
         
 
         fs = flipStrand
         if not startFork.after_strand() == endFork.before_strand():
-            if verbose:
-                print("Flipping strands")
-                print(str(startFork) + " (start fork)")
-                print(str(endFork) + " (end fork, other strand)")
                 
             endFork.flip_strands(lengthData)
+            if verbose:
+                print("Flipping endFork:")
+                print(endFork)
+
             fs = not flipStrand
 
         if startFork.after_pos() > endFork.before_pos():
             #this could happen if sets of NNNs are close
 
             if verbose:
-                print("excluding forks because positional issue")
+                print("Excluding forks because positional issue")
                 print(str(startFork) + " (start fork, excluding)")
                 print(str(endFork) + " (end fork, excluding)")
+                print("Popping last fork:")
+                print(cleanPath[-1])
 
             startFork = cleanPath.pop()
             continue
             
         cleanPath.add_fork(startFork)
+        print("Keeping fork:")
+        print(startFork)
+        
         startFork = endFork
         flipStrand = fs
         
@@ -258,4 +270,26 @@ def clean_path(path, lengthData, verbose=False):
 
         
 
-        
+'''
+New pair:
+tig00000569_pilon_pilon 17501366 (-1) 6 11439332 (1)
+6 11862031 (1) tig00000569_pilon_pilon 11742085 (1)
+Keeping fork:
+tig00000569_pilon_pilon 17501366 (-1) 6 11439332 (1)
+
+New pair:
+6 11862031 (1) tig00000569_pilon_pilon 11742085 (1)
+tig00000569_pilon_pilon 17931734 (-1) 6 11870025 (1)
+Flipping endFork:
+tig00000569_pilon_pilon 11736207 (1) 6 27465971 (-1)
+Excluding forks because positional issue
+6 11862031 (1) tig00000569_pilon_pilon 11742085 (1) (start fork, excluding)
+tig00000569_pilon_pilon 11736207 (1) 6 27465971 (-1) (end fork, excluding)
+Popping last fork:
+tig00000569_pilon_pilon 17501366 (-1) 6 11439332 (1)
+'''
+
+'''
+6 12141392 (1) tig00000569_pilon_pilon 18201658 (-1)
+6_24
+'''

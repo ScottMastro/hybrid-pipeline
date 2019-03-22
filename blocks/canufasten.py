@@ -93,7 +93,7 @@ def sequence_validation(sequences):
     f.close()      
 '''
 
-def get_edges(sequence, nbases=1000, toPrint=False):
+def get_edges(sequence, nbases=2000, toPrint=False):
     edges = []
     for i in range(len(sequence)-1):
         edge = sequence[i][-int(nbases/2):] +\
