@@ -127,11 +127,12 @@ def buildPath(q, r, nQryBeg, nRefBeg, lCigar):
 def reverse_complement(seq):
     return ''.join([dRc[x] for x in seq[::-1]])
 
-def align(qSeq, rSeq, qId, rId, reverse=False, printResults=False):
+def align(qSeq, rSeq, qId, rId, forward=True, reverse=False, printResults=False):
 
 # build query profile
-    qNum = to_int(qSeq, lEle, dEle2Int)
-    qProfile = ssw.ssw_init(qNum, ct.c_int32(len(qSeq)), mat, nEleNum, 2)
+    if forward:
+        qNum = to_int(qSeq, lEle, dEle2Int)
+        qProfile = ssw.ssw_init(qNum, ct.c_int32(len(qSeq)), mat, nEleNum, 2)
 # build rc query profile
     if reverse:
         rqSeq = reverse_complement(qSeq)
@@ -147,30 +148,36 @@ def align(qSeq, rSeq, qId, rId, reverse=False, printResults=False):
 # iter target sequence
     rNum = to_int(rSeq, lEle, dEle2Int)
 
-# format ofres: (nScore, nScore2, nRefBeg, nRefEnd, nQryBeg, nQryEnd, nRefEnd2, nCigarLen, lCigar)
-    res = align_one(ssw, qProfile, rNum, len(rSeq), nMaskLen)
-# align rc query
+    res =None
     resRc = None
+
+# format ofres: (nScore, nScore2, nRefBeg, nRefEnd, nQryBeg, nQryEnd, nRefEnd2, nCigarLen, lCigar)
+    if forward:
+        res = align_one(ssw, qProfile, rNum, len(rSeq), nMaskLen)
+# align rc query
     if reverse:
         resRc = align_one(ssw, rqProfile, rNum, len(rSeq), nMaskLen)
 
 # build cigar and trace back path
     strand = 0
-    if resRc == None or res[0] > resRc[0]:
+    if res is not None and (resRc is None or res[0] > resRc[0]):
         resPrint = res
         strand = 0
         sCigar, sQ, sA, sR = buildPath(qSeq, rSeq, res[4], res[2], res[8])
-    else:
+    elif resRc is not None:
         resPrint = resRc
         strand = 1
         sCigar, sQ, sA, sR = buildPath(rqSeq, rSeq, resRc[4], resRc[2], resRc[8])
-
+    else:
+        return None
+    
+    score = resPrint[0]
     rbegin=resPrint[2]
     rend=resPrint[3]
     qbegin=resPrint[4]
     qend=resPrint[5]
 
-# print results
+    # print results
     if printResults:
         print(sCigar)
         print('target_name: {}\nquery_name: {}\noptimal_alignment_score: {}\t'.format(rId, qId, resPrint[0]))
@@ -202,13 +209,14 @@ def align(qSeq, rSeq, qId, rId, reverse=False, printResults=False):
                 n3 = n4 + 1
                 n4 = n4 + min(60,len(sQ)-i-60) - sQ.count('-',i+60,i+120)
 
-    ssw.init_destroy(qProfile)
+    if forward:
+        ssw.init_destroy(qProfile)
     if reverse:
         ssw.init_destroy(rqProfile)
 
     direction = 1 if strand == 0 else -1
 
-    if reverse:
-        return [sQ, qbegin, qend, sA, sR, rbegin, rend, direction]
+    if forward and reverse:
+        return [sQ, qbegin, qend, sA, sR, rbegin, rend, score, direction]
         
-    return [sQ, qbegin, qend, sA, sR, rbegin, rend]
+    return [sQ, qbegin, qend, sA, sR, rbegin, rend, score]

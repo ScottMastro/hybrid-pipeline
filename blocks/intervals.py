@@ -48,6 +48,7 @@ class Interval:
         if not self.sorted: self.sort()
         return self.components[0].start(q)
     def end(self, q=True): 
+        if not self.sorted: self.sort()
         return self.components[-1].end(q)
 
     def left_of(self, other, q=True):

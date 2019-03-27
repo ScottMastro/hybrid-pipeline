@@ -17,14 +17,13 @@ if len(sys.argv) > 1 :
     canufa = sys.argv[4]      #canu fasta
 
 else:
-    #prefix="/home/scott/Dropbox/hybrid-pipeline/blocks"
-    prefix="/media/scott/HDD/sickkids/hybrid-pipeline/blocks/"
+    prefix="/home/scott/Dropbox/hybrid-pipeline/blocks"
     summary_file = prefix + "/summary.txt"
     
-    #prefix = "/media/scott/Rotom/assembly_data/CF062/"
-    prefix="/media/scott/HDD/sickkids/"
+    prefix = "/media/scott/Rotom/assembly_data/CF062/"
+    #prefix="/media/scott/HDD/sickkids/"
 
-    novafa = prefix + "OSK7121_03C_supernova.pseudohap2.2.fasta"
+    novafa = prefix + "OSK7121_03C_supernova.pseudohap2.1.fasta"
     canufa = prefix + "CF062B2D.contigs.fasta.PILON2.fasta"
 
 #----Parameters-------------------------
