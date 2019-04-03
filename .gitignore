@@ -1,7 +1,7 @@
 *.png
 *.svg
 *.txt
-
+*.fasta
 
 .Rhistory
 # Byte-compiled / optimized / DLL files

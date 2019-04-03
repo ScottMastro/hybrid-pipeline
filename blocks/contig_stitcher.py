@@ -3,7 +3,7 @@ import block_builder as blocker
 import plot_blocks as plotter
 from gfa_handler import GFA
 
-def stitch_contig(aligndf, qname, param):    
+def stitch(aligndf, qname, param):    
     
     #QUERY ONLY TODO
     #dataframe containing only alignments for one contig
@@ -78,7 +78,7 @@ def stitch_contigs(aligndf, param):
         #print("Plotting " + str(qname))
         #plot(aligndf, qname, param)
         
-        contigs[qname] = stitch_contig(aligndf, param)
+        contigs[qname] = stitch(aligndf, qname, param)
         
         #gfa = add_contig(contigs[-1], gfa, isQuery=True)
 

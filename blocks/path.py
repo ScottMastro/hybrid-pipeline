@@ -1,63 +1,93 @@
-import math
 from reversecomp import reverse_complement
 
-'''
-class Segment:
-    def __init__(self, tigId, startPos, endPos, strand):
-        self.id=tigId
-        self.startPos=startPos
-        self.endPos=endPos
-        self.strand=strand
-    def start(self): return self.startPos
-    def end(self): return self.endPos
-    def __len__(self):
-        return abs(self.endPos - self.startPos)
-    
-    def get_dir(self, string=False):
-        if self.strand == 1:
-            return "+" if string else 1
-        if self.strand == -1:
-            return "-" if string else -1
-        else:
-            return "?" if string else 0
-        
-    def get_sequence(self, seqData):
-        seq = str(seqData[str(self.id)])
-        left = self.startPos
-        right = self.startPos
-        
-        if self.strand == -1:
-            rcLeft = len(seq) - right
-            rcRight = len(seq) - left            
-            return reverse_complement(seq[rcLeft : rcRight])
-        else:
-            return seq[left : right]   
-           
-    def __repr__(self):
-        return str(self.id) + ":" + \
-            str(self.startPos) + "-" + str(self.endPos) +  "(" + self.strand(string=True)  + ")"
-    def __str__(self):
-        return self.__repr__()
-'''
-        
 class Path:
     def __init__(self):
         self.path = []
-        
+        self.supplementaryPath = []
+
+    def id_on_end(self, id):
+        if len(self.path) == 0:
+            return None        
+        return self.path[0].has_id(id) or self.path[-1].has_id(id)
+
     def add_fork(self, fork):
         self.path.append(fork)
-    
-    def add_path(self, other):
+  
+    def pop(self, index=None):
+        if len(self.path) < 1:
+            return None        
+        if index is None:
+            return self.path.pop()
+        
+        return self.path.pop(index)
+
+    def add_fork_front(self, fork):
+        self.path.insert(0, fork)
+
+    def add_path(self, other): 
         self.path.extend(other.path)
+    
+    def extend(self, forks): 
+        self.path.extend(forks)
+
+    def add_supplementary(self, path, startIndex, endIndex):
+        self.supplementaryPath.append((path, startIndex, endIndex))
+        
+    def get_interval(self, tigId, lengthData):
+        tigSize = lengthData[str(tigId)]
+        
+        minPos = tigSize
+        maxPos = 0
+        for fork in self.path:
+            pos = fork.get_pos_by_id(tigId)
+            if pos is None: continue
+            pos = pos if fork.get_strand_by_id(tigId) == 1 else tigSize - pos
+            
+            minPos = min(minPos, pos)
+            maxPos = max(maxPos, pos)
+
+        return(minPos, maxPos)
+        
+    def normalize(self, tigId, lengthData):
+        tigSize = lengthData[str(tigId)]
+        if not self.path[-1].has_id(tigId):
+            if not self.path[0].has_id(tigId):
+                return
+            else:
+                if self.path[0].get_strand_by_id(tigId) == -1:
+                    self.flip_strands(lengthData)
+            return
+        
+        elif not self.path[0].has_id(tigId):
+            if self.path[-1].get_strand_by_id(tigId) == -1:
+                self.flip_strands(lengthData)
+            return
+        else:
+            firstPos = self.path[0].get_pos_by_id(tigId)
+            firstPos = firstPos if self.path[0].get_strand_by_id(tigId) == 1 else tigSize - firstPos
+            lastPos = self.path[-1].get_pos_by_id(tigId)
+            lastPos = lastPos if self.path[-1].get_strand_by_id(tigId) == 1 else tigSize - lastPos
+            if lastPos < firstPos:
+                self.flip_strands(lengthData)
+                
+            return
+    
+    def has_id(self, tigId):
+        for fork in self.path:
+            if fork.has_id(tigId):
+                return True
+        return False
     
     def last_fork(self):
         if len(self.path) == 0:
             return None
         return self.path[-1]
-        
-    def pop(self):
-        return self.path.pop()
-
+    
+    def first_fork(self):
+        if len(self.path) == 0:
+            return None
+        return self.path[0]
+    
     def head(self):
         if len(self.path) == 0:
             return None
@@ -75,6 +105,11 @@ class Path:
             return h
         return None
     
+    def flip_strands(self, lengthData):
+        self.path = self.path[::-1]
+        for fork in self.path:
+            fork.flip_strands(lengthData)
+        
     def tail(self):
         if len(self.path) == 0:
             return None
@@ -98,9 +133,9 @@ class Path:
          return len(self.path)
      
     def __repr__(self):
-        return "\n".join([f.__repr__() for f in self.path])
+        return str(self.first_fork()) + "...\t..." + str(self.last_fork()) + "\t(" + str(len(self.path)) + ")"
     def __str__(self):
-        return "\n".join([f.__str__() for f in self.path])
+        return "\n".join([f.__repr__() for f in self.path])
 
     def get_fork_sequence(self, seqData, nbases=1000, q=True):
     
@@ -174,16 +209,42 @@ class Fork:
     def flip_switch(self):
         self.switch = "r" if self.switch == "q" else "q"
 
-    def flip_strands(self, lengthData):
+    def flip_strands(self, lengthData, makeCopy=False):
+        
+        if makeCopy:
+            flipped = Fork(self.qid, self.qpos, self.qstrand, \
+                           self.rid, self.rpos, self.rstrand)
+            flipped.switch = self.switch
+            flipped.flip_strands(lengthData)
+            return flipped
+            
         self.qpos = lengthData[str(self.qid)] - self.qpos
         self.qstrand = self.qstrand*(-1)
         
         self.rpos = lengthData[str(self.rid)] - self.rpos
         self.rstrand = self.rstrand*(-1)
+        self.flip_switch()
+
+    def has_id(self, id):
+        return self.rid == id or self.qid == id
 
     def get_pos(self, q=True):
         if q: return self.qpos
         else: return self.rpos
+        
+    def get_pos_by_id(self, tigId):
+        if self.qid == tigId:
+            return self.qpos
+        elif self.rid == tigId:
+            return self.rpos
+        else: return None
+                
+    def get_strand_by_id(self, tigId):
+        if self.qid == tigId:
+            return self.qstrand
+        elif self.rid == tigId:
+            return self.rstrand
+        else: return None
         
     def __repr__(self):
         sq = str(self.qid) + " " + str(self.qpos) + " (" + str(self.qstrand) + ")"
@@ -196,6 +257,20 @@ class Fork:
         
     def __str__(self):
         return self.__repr__()
+    
+def can_join_forks(beforeFork, afterFork):
+    
+    if not beforeFork.after_id() == afterFork.before_id():
+        return False
+    if not beforeFork.after_strand() == afterFork.before_strand():
+        return False
+    if beforeFork.after_strand() == 1:
+        if not beforeFork.after_pos() < afterFork.before_pos():
+            return False
+    else:
+        if not beforeFork.after_pos() > afterFork.before_pos():
+            return False
+    return True
     
 
 def clean_strand(path, lengthData, verbose=False):
@@ -251,14 +326,9 @@ def clean_strand(path, lengthData, verbose=False):
 
     for flip, forks in zip(toFlip, strandedPaths):
         if flip:
-            for fork in forks[::-1]:
-                fork.flip_strands(lengthData)
-                fork.flip_switch()
-                singleStrandPath.add_fork(fork)
-        else:
-            for fork in forks:
-                singleStrandPath.add_fork(fork)
+            forks.flip_strands(lengthData)
 
+        singleStrandPath.add_path(forks)
 
     return singleStrandPath
 

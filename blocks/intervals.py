@@ -61,7 +61,7 @@ class Interval:
     def contains_position(self, basePosition, q=True): 
         return basePosition >= self.left(q) and basePosition <= self.right(q)
 
-    def closest_corresponding_position(self, basePosition, q=True): 
+    def closest_corresponding_position(self, basePosition, q=True, side=None): 
         if not self.sorted: self.sort()
         
         if self.contains_position(basePosition, q):
@@ -70,8 +70,25 @@ class Interval:
                          for component in self.components]
             
             index_min = min(range(len(distances)), key=distances.__getitem__)
-            return self.components[index_min].closest_corresponding_position(basePosition, q)
-
+            
+            if side is None or self.components[index_min].contains_position(basePosition, q) :
+                return self.components[index_min].closest_corresponding_position(basePosition, q, side)
+            #before index_min
+            elif abs(basePosition-self.components[index_min].start(q)) < \
+                abs(basePosition-self.components[index_min].end(q)):
+                    if side == 'r':
+                        return self.components[index_min].start(not q)
+                    elif side == 'l':
+                        #min_index-1 should exist because self contains the point
+                        return self.components[index_min-1].end(not q)
+            #after index_min
+            else:
+                    if side == 'r':
+                        #min_index+1 should exist because self contains the point
+                        return self.components[index_min+1].start(not q)
+                    elif side == 'l':
+                        return self.components[index_min].end(not q)
+                    
         else:
             if abs(basePosition-self.start(q)) < abs(basePosition-self.end(q)):
                 return self.start(not q)
@@ -137,7 +154,7 @@ class Chunk(Interval):
         if q: return abs(self.qstart - self.qend)
         return abs(self.rstart - self.rend)
     
-    def closest_corresponding_position(self, basePosition, q=True): 
+    def closest_corresponding_position(self, basePosition, q=True, side=None): 
         displacement = self.start(q) - basePosition
         return self.start(not q) - displacement*self.get_dir(not q)
 

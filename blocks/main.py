@@ -1,5 +1,8 @@
 import file_handler as reader
 import contig_stitcher as stitcher
+import contig_welder as welder
+import contig_scaffolder as scaffolder
+import contig_output as output
 
 from parameters import Parameters
 from Bio import SeqIO
@@ -35,7 +38,7 @@ def read_fa(fa):
     else:
         records = list(SeqIO.parse(fa, "fasta"))
         
-    return dict(zip([r.id for r in records], [r.seq for r in records]))
+    return dict(zip([r.id for r in records], [str(r.seq) for r in records]))
 
 def main():
     print("Reading Canu fasta")
@@ -46,12 +49,21 @@ def main():
     seqData = {}
     seqData.update(refData)
     seqData.update(queryData)
-    lengthData = {x : len(str(seqData[x])) for x in seqData.keys()}
+    lengthData = {x : len(seqData[x]) for x in seqData.keys()}
     
     aligndf = reader.parse_alignments(summary_file)   
-    #contigs = stitcher.stitch_contigs(aligndf, param)
-    contig = stitcher.stitch_contig(aligndf, 6, param)
-    #contig = fastener.fasten_contig(contig, seqData, lengthData, param)   
+    
+    paths = []
+
+    lst = [0,3,4,5,6,8,9,10,11,12,13,14,15,27]
+    for qid in lst: #queryData.keys():
+        print(qid)
+        contig = stitcher.stitch(aligndf, qid, param)
+        path = welder.weld(contig, seqData, lengthData, param)   
+        paths.append(path)
+        
+    paths = scaffolder.scaffold(paths,"tig00000569_pilon_pilon", lengthData, param)
+    paths = scaffolder.scaffold(paths,"tig00000002_pilon_pilon", lengthData, param)
 
     print(contig)
   

@@ -87,8 +87,7 @@ def cut_test():
 '''
 
 def align(seqA, seqB, posA, posB, alignBuffer, extension, side, printAlignment=False):
-    #todo: speedup? pass direction as hint?
-    
+    #todo: speedup? pass direction as hint?    
     '''
     seqA, seqB = qSeq, rSeq,
     posA, posB = qstart, rstart
@@ -96,12 +95,11 @@ def align(seqA, seqB, posA, posB, alignBuffer, extension, side, printAlignment=F
 
     alignBuffer = 20000
     printAlignment=True
-    
     '''
 
     leftBuffer = 0 if side == 'r' else alignBuffer + extension
     rightBuffer = 0 if side == 'l' else alignBuffer + extension
-
+    
     leftA = max(posA - leftBuffer, 0) 
     rightA = min(posA + rightBuffer, len(seqA)-1)
     subSeqA = seqA[leftA:rightA]
@@ -113,7 +111,7 @@ def align(seqA, seqB, posA, posB, alignBuffer, extension, side, printAlignment=F
     leftB = max(posB - leftBuffer, 0)
     rightB = min(posB + rightBuffer, len(seqB)-1)    
     subSeqB = seqB[leftB:rightB]
-    
+
     results = ssw.align(subSeqB, subSeqA, "B", "A", forward=True, reverse=False)    
     
     leftBReverse = max(posB - rightBuffer, 0)
@@ -121,7 +119,7 @@ def align(seqA, seqB, posA, posB, alignBuffer, extension, side, printAlignment=F
     subSeqBReverse = seqB[leftBReverse:rightBReverse]
     
     reverseResults= ssw.align(subSeqBReverse, subSeqA, "B", "A", forward=False, reverse=True)    
-            
+
     if results[-1] > reverseResults[-1]:
         if printAlignment:
             ssw.align(subSeqB, subSeqA, "B", "A", forward=True, reverse=False, printResults=True)    
@@ -137,9 +135,8 @@ def align(seqA, seqB, posA, posB, alignBuffer, extension, side, printAlignment=F
         alnA, alnStartA, alnEndA, score = reverseResults
         direction = -1
         (leftB, rightB) = (leftBReverse, rightBReverse)
-        
-        
-        
+   
+
     if(side == 'l'):
         A = leftA + alnStartA
         
@@ -157,7 +154,7 @@ def align(seqA, seqB, posA, posB, alignBuffer, extension, side, printAlignment=F
         
         if(aln[-100:].count('|') < 90 and side == 'r'):
             return None
-        
+
     splitSize=6
     splitA = seqA[max(0, A-splitSize):A] + "-" + seqA[A:A+splitSize]
     B_ = B
@@ -167,7 +164,7 @@ def align(seqA, seqB, posA, posB, alignBuffer, extension, side, printAlignment=F
     splitB = seqB[max(0, B_-splitSize):B_] + "-" + seqB[B_:B_+splitSize]
     if direction == -1:
         splitB = reverse_complement(splitB)
-    
+
     if printAlignment:
         print(splitA)
         print(splitB)
@@ -175,17 +172,15 @@ def align(seqA, seqB, posA, posB, alignBuffer, extension, side, printAlignment=F
         
     if splitA != splitB:
         return None
-    
+
     return (A, 1, B, direction)
     
-def align_left(seqA, seqB, posA, posB, alignBuffer=2000, verbose=False):
+def align_left(seqA, seqB, posA, posB, alignBuffer=500, verbose=False):
     extension=0
     retryCount = 0
-    while True:
+    while extension < 20000:
         leftCut = align(seqA, seqB, posA, posB, alignBuffer, extension, 'l', verbose)
         if leftCut is not None:
-            if retryCount > 0:
-                print(retryCount)
             return leftCut
         else:
             retryCount = retryCount + 1
@@ -193,15 +188,17 @@ def align_left(seqA, seqB, posA, posB, alignBuffer=2000, verbose=False):
             if verbose:
                 print("trying left again with extension=" + str(extension))
                 input()
-            
-def align_right(seqA, seqB, posA, posB, alignBuffer=2000, verbose=False):
+    
+    print("could not create bubble")
+    if verbose: print("giving up")
+    return None
+
+def align_right(seqA, seqB, posA, posB, alignBuffer=500, verbose=False):
     extension=0
     retryCount = 0
-    while True:
+    while extension < 20000:
         rightCut = align(seqA, seqB, posA, posB, alignBuffer, extension, 'r', verbose)
         if rightCut is not None:
-            if retryCount > 0:
-                print(retryCount)
             return rightCut
         else:
             retryCount = retryCount + 1
@@ -210,36 +207,50 @@ def align_right(seqA, seqB, posA, posB, alignBuffer=2000, verbose=False):
                 print("trying right again with extension=" + str(extension))
                 input()
 
+    print("could not create bubble")
+    if verbose: print("giving up")
+    return None
 
-def create_bubble(rid, qid, rSeq, qSeq, rstart, rend, qstart, qend, alignBuffer=2000, verbose=False):
+
+def create_bubble(rid, qid, rSeq, qSeq, rstart, rend, qstart, qend, alignBuffer=500, verbose=False):
     
     if verbose:
         print("Starting alignment, left")
         input()
     
     #block start
-    (qst, qdirSt, rst, rdirSt) = align_left(qSeq, rSeq, qstart, rstart, alignBuffer, verbose)
+    result = align_left(qSeq, rSeq, qstart, rstart, alignBuffer, verbose)
+    if result is None: return (None, None)
+    (qst, qdirSt, rst, rdirSt) = result
     
     if verbose:
         print("Starting alignment, right")
         input()
     
-    
     #block end
-    (qed, qdirEd, red, rdirEd) = align_right(qSeq, rSeq, qend, rend, alignBuffer, verbose) 
+    result = align_right(qSeq, rSeq, qend, rend, alignBuffer, verbose) 
+    if result is None: return (None, None)
+    (qed, qdirEd, red, rdirEd) = result
     
-    if qst > qed:
-        print("bad alignment??")
-
     startFork = Fork(qid, qst, qdirSt, rid, rst, rdirSt)
     startFork.switch_reference()
     endFork = Fork(qid, qed, qdirEd, rid, red, rdirEd)
     endFork.switch_query()
 
-
-    #import time
-    #time.sleep(5)
     return (startFork, endFork)
 
+def align_single(rid, qid, rSeq, qSeq, rpos, qpos, side, alignBuffer=500, verbose=False):
+    if side == 'l':
+        result = align_left(qSeq, rSeq, qpos, rpos, alignBuffer, verbose)
+    elif side == 'r':
+        result = align_right(qSeq, rSeq, qpos, rpos, alignBuffer, verbose)
 
+    if result is None: return None
+    (qp, qdir, rp, rdir) = result
+    return Fork(qid, qp, qdir, rid, rp, rdir)
 
+def align_single_left(rid, qid, rSeq, qSeq, rpos, qpos, alignBuffer=500, verbose=False):
+     return align_single(rid, qid, rSeq, qSeq, rpos, qpos, 'l', alignBuffer, verbose)  
+
+def align_single_right(rid, qid, rSeq, qSeq, rpos, qpos, alignBuffer=500, verbose=False):
+     return align_single(rid, qid, rSeq, qSeq, rpos, qpos, 'r', alignBuffer, verbose)  
