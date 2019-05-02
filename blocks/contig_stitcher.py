@@ -1,4 +1,5 @@
 import numpy as np
+import log
 import block_builder as blocker
 import plot_blocks as plotter
 from gfa_handler import GFA
@@ -8,7 +9,10 @@ def stitch(aligndf, qname, param):
     #QUERY ONLY TODO
     #dataframe containing only alignments for one contig
     df = aligndf.loc[aligndf[str(aligndf.columns[0])] == qname]
-
+    if len(df) == 0:
+        log.out("Contig " + str(qname) + " has no chunk alignments!", 1, param)
+        return None
+    
     mblockList=[]
     
     #row=next(df.iterrows())[1]

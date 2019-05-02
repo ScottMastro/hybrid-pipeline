@@ -52,21 +52,83 @@ def main():
     lengthData = {x : len(seqData[x]) for x in seqData.keys()}
     
     aligndf = reader.parse_alignments(summary_file)   
-    
+        
     paths = []
 
-    lst = [0,3,4,5,6,8,9,10,11,12,13,14,15,27]
-    for qid in lst: #queryData.keys():
+    lst = [0,3,4,5,6,8,9,10,11,12,13,14,15]
+    
+    for qid in queryData.keys(): #in lst: 
         print(qid)
+        qid = int(qid)
+        #if(qid < 73003): 
+        #    continue
         contig = stitcher.stitch(aligndf, qid, param)
-        path = welder.weld(contig, seqData, lengthData, param)   
+        if contig is None: continue
+        path = welder.weld(contig, seqData, lengthData, param)
         paths.append(path)
-        
-    paths = scaffolder.scaffold(paths,"tig00000569_pilon_pilon", lengthData, param)
-    paths = scaffolder.scaffold(paths,"tig00000002_pilon_pilon", lengthData, param)
+    
+    
+    import copy 
+    #paths_ = copy.deepcopy(paths)
+    paths = copy.deepcopy(paths_)
+    
+    leftovers = []
+    scaffolds = []
 
-    print(contig)
-  
+    complete = dict()
+    refContigs = list(refData.keys())
+    refContigs.sort(key=lambda x: -lengthData[x])
+    
+    for tigId in refContigs:
+        if tigId in complete:
+            continue
+        
+        scaffold, paths, leftover = scaffolder.scaffold2(paths, tigId, lengthData, param)
+        leftovers = leftovers + leftover
+        complete[tigId] = True
+        
+        flag = False
+        while not flag:
+            flag = True
+            if scaffold is None or len(scaffold) <= 0:
+                break
+ 
+            tigId = scaffold[0].rid
+            if tigId not in complete:
+                scaffold, paths, leftover = scaffolder.scaffold2(paths, tigId, lengthData, param, scaffold)
+                leftovers = leftovers + leftover
+                complete[tigId] = True
+                flag = False
+
+            tigId = scaffold[-1].rid
+            if tigId not in complete:
+                scaffold, paths, leftover = scaffolder.scaffold2(paths, tigId, lengthData, param, scaffold)
+                leftovers = leftovers + leftover
+                complete[tigId] = True
+                flag = False
+
+        if scaffold is not None:
+            scaffolds.append(scaffold)
+    
+    
+    
+    
+    
+    for scaffold in leftovers:
+        if scaffold[0].rid != scaffold[-1].rid:
+            print(scaffold[0].rid + " - " + scaffold[-1].rid)
+            
+
+    
+    pacbioTigs = set()
+    for path in paths:
+        for fork in path:
+            pacbioTigs.add(fork.rid)
+    
+    output.output_contigs(lst, seqData, "novachr3.fasta")
+    output.output_contigs(pacbioTigs, seqData, "canuchr3.fasta")
+    output.path_to_sequence(paths[0], seqData, "hybridchr3.fasta")
+
   
 if __name__== "__main__":
   main()

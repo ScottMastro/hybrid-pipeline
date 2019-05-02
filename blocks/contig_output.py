@@ -1,4 +1,5 @@
 from reversecomp import reverse_complement
+import re
 
 def validate_forks(path, seqData, nbases=25):
 
@@ -72,7 +73,7 @@ def get_edges(sequence, nbases=1000, toPrint=False):
     return edges
 
 
-def path_to_sequence(path, seqData, invert=False):
+def path_to_sequence(path, seqData, file=None, invert=False):
     sequence = []
     source = []
     
@@ -127,4 +128,24 @@ def path_to_sequence(path, seqData, invert=False):
 
     add_seq(endFork, path.tail())
     
+    if file is not None:
+        
+        f = open(file, "w+")
+        f.write(">hybrid" + "\n")
+        f.write(re.sub("(.{64})", "\\1\n", "".join(sequence), 0, re.DOTALL) + "\n")
+        f.close()   
+        return 
+    
     return (sequence, source)
+
+
+def output_contigs(tigList, seqData, file):
+
+    f = open(file, "w+")
+    
+    for tigId in tigList:
+        tigId = str(tigId)
+        f.write(">" + tigId + "\n")
+        f.write(re.sub("(.{64})", "\\1\n", seqData[tigId], 0, re.DOTALL) + "\n")
+    f.close()   
+    return

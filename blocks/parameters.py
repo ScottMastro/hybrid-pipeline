@@ -8,3 +8,4 @@ class Parameters:
         self.CHUNK_OVERLAP      =   0.25    #max overlap for a repeated chunk
         self.BLOCK_DIST_THRESH  =   1.5     #threshold for block insert dist
         self.MEGABLOCK_OVERLAP  =   0.01    #max overlap for megablocks
+        self.VERBOSE            =   1       #verbosity

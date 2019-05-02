@@ -1,4 +1,64 @@
 from reversecomp import reverse_complement
+import log
+import uuid
+
+class Node:
+    def __init__(self, fork):
+        self.fork = fork
+        self.prevNode = []
+        self.nextNode = []
+        self.id = str(uuid.uuid4())
+        
+    def add_next_main(self, node):
+        self.nextNode = [node] + self.nextNode
+    def add_prev_main(self, node):
+        self.prevNode = [node] + self.prevNode
+
+    def add_next(self, node):
+        self.nextNode.append(node)
+    def add_prev(self, fork):
+        self.prevNode.append(fork)
+        
+    def __str__(self):
+        return self.fork.__str__()
+        
+class Graph:
+    def __init__(self, path=None):
+        self.nodes = []
+        self.nodeEnds = []
+        self.start = None
+
+        if path is not None:
+            prev = None
+            for fork in path:
+                node = Node(fork)
+                if prev is not None:
+                    self.nodes[-1].add_next(node)
+                    node.add_prev(prev)
+                    
+                self.nodes.append(node)
+                prev = node
+
+        if len(self.nodes) > 0:
+            self.nodeEnds.append(self.nodes[0])       
+            self.start = self.nodes[0]
+        if len(self.nodes) > 1:
+            self.nodeEnds.append(self.nodes[-1]) 
+        
+    def get_start(self):
+        return self.start
+    
+    def __str__(self):
+        string = ""
+        nd = self.start
+        while True:
+            string = string + nd.__str__() + \
+            " (" + str(len(nd.prevNode)) + "," + str(len(nd.nextNode)) + ")\n"
+            if len(nd.nextNode) <= 0:
+                break
+            nd = nd.nextNode[0]
+        return string
+
 
 class Path:
     def __init__(self):
@@ -268,12 +328,64 @@ def can_join_forks(beforeFork, afterFork):
         if not beforeFork.after_pos() < afterFork.before_pos():
             return False
     else:
-        if not beforeFork.after_pos() > afterFork.before_pos():
+        if not beforeFork.after_pos() < afterFork.before_pos():
             return False
     return True
-    
 
-def clean_strand(path, lengthData, verbose=False):
+def path_overlap(path1, path2, lengthData, source=None):
+                                           #'r' for ref, 'q' for query, None = both
+    def normalized_pos(fork, tigId):
+        pos = fork.get_pos_by_id(tigId)
+        if pos is None: return None
+        if fork.get_strand_by_id(tigId) == -1:
+            pos = lengthData[str(tigId)] - pos
+        return pos
+    
+    def fill_dict(path):
+        starts = dict()
+        ends = dict()
+        for fork in path:
+            if source is None :
+                tigIds = [fork.before_id(), fork.after_id()]
+            else:
+                tigIds = ([fork.rid] if source == 'r' else []) + \
+                 ([fork.qid] if source == 'q' else [])
+                 
+            for tigId in tigIds:
+                pos = normalized_pos(fork, tigId)
+                tigId = str(tigId)
+                if tigId not in starts:
+                    starts[tigId] = pos
+                    ends[tigId] = pos
+                else:
+                    if pos < starts[tigId]: starts[tigId] = pos
+                    if pos > ends[tigId]: ends[tigId] = pos
+        return (starts,ends)
+               
+    starts1, ends1 = fill_dict(path1)
+    starts2, ends2 = fill_dict(path2)
+
+
+    overlap = 0.0
+    total1 = 0.0
+    total2 = 0.0
+    for tigId in set(starts1.keys()).union(set(starts2.keys())):
+        if tigId in starts1 and tigId in starts2:
+            start = max(starts1[tigId], starts2[tigId])
+            end = min(ends1[tigId], ends2[tigId])
+            overlap = overlap + max(0, end - start)
+            #print(tigId)
+            #print(str(start) + " - " + str(end))
+            #print (overlap)
+            
+        if tigId in starts1:
+            total1 = total1 + abs(ends1[tigId] - starts1[tigId])
+        if tigId in starts2:
+            total2 = total2 + abs(ends2[tigId] - starts2[tigId])
+        
+    return (overlap/(total1 +1), overlap/(total2 +1))
+        
+def clean_strand(path, lengthData, param):
 
     strandedPaths = []
     toFlip = []
@@ -281,7 +393,10 @@ def clean_strand(path, lengthData, verbose=False):
     flipStrand = False
     currentPath = Path()
     
-    #if len(path) < 1: return currentPath
+    if len(path) < 1: return currentPath
+    
+    log.out("Fixing strand orientation.", 2, param)
+
     
     startFork = path[0]
     flipStrand = False
@@ -289,15 +404,13 @@ def clean_strand(path, lengthData, verbose=False):
     for i in range(1, len(path)):
 
         endFork = path[i]
-    
-        if verbose:
-            print("New pair:\t" + str(startFork) + "\t" + str(endFork))
+        log.out("New pair:\t" + str(startFork) + "\t" + str(endFork), 3, param)
 
         if startFork.after_id() != endFork.before_id():           
-            if verbose:
-                print("Excluding fork because IDs do not match:")
-                print(str(startFork) + " (try to match)")
-                print(str(endFork) + " (excluded)")
+            #this should not happen if all alignments were successful !
+            log.out("Excluding fork because IDs do not match:", 2, param)
+            log.out(str(startFork) + " (start fork, try to match)", 2, param)
+            log.out(str(endFork) + " (end fork, excluded)", 2, param)
             continue
 
 
@@ -308,9 +421,7 @@ def clean_strand(path, lengthData, verbose=False):
             currentPath = Path()
             toFlip.append(flipStrand)
             flipStrand = not flipStrand
-            if verbose:
-                print("Flipping at:\t" + str(endFork))
-
+            log.out("Flipping strand at:" + str(endFork), 2, param)
             startFork = endFork
             continue
 
@@ -329,56 +440,68 @@ def clean_strand(path, lengthData, verbose=False):
             forks.flip_strands(lengthData)
 
         singleStrandPath.add_path(forks)
+        
+    log.out("Strand orientation fixing complete.", 2, param)
 
     return singleStrandPath
 
 
 
-def clean_path(path, lengthData, verbose=False):
+def clean_path(path, lengthData, param):
 
     cleanPath = Path()
 
     if len(path) < 1: return cleanPath
     
-    singleStrandPath = clean_strand(path, lengthData, verbose=False)
+    log.out("Cleaning path.", 1, param)
+    log.out("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", 1, param)
+
+    singleStrandPath = clean_strand(path, lengthData, param)
     startFork = singleStrandPath[0]
         
     for i in range(1, len(singleStrandPath)):
 
         endFork = singleStrandPath[i]
     
-        if verbose:
-            print("New pair:\t" + str(startFork) + "\t" + str(endFork))
+        log.out("New pair:\t" + str(startFork) + "\t" + str(endFork), 3, param)
             
-        if startFork.after_id() != endFork.before_id():
-            if verbose:
-                print("Excluding fork because IDs do not match:")
-                print(str(startFork) + " (try to match)")
-                print(str(endFork) + " (excluded)")
+        if startFork.after_id() != endFork.before_id():      
+            #this should not happen after cleanStrand() !
+            log.out("Excluding fork because IDs do not match:", 2, param)
+            log.out(str(startFork) + " (start fork, try to match)", 2, param)
+            log.out(str(endFork) + " (end fork, excluded)", 2, param)
             continue
         
         if not startFork.after_strand() == endFork.before_strand():
-            print("Strand issue with forks!!!!")
+            #this should not happen after cleanStrand() !
+            log.out("Excluding fork because strands do not match:", 2, param)
+            log.out(str(startFork) + " (start fork, try to match)", 2, param)
+            log.out(str(endFork) + " (end fork, excluded)", 2, param)
+            continue
 
         if startFork.after_pos() > endFork.before_pos():
             #this could happen if sets of NNNs are close
-
-            if verbose:
-                print("Excluding forks because positional issue")
-                print(str(startFork) + " (start fork, excluding)")
-                print(str(endFork) + " (end fork, excluding)")
-                print("Popping last fork:")
-                print(cleanPath[-1])
-
-            startFork = cleanPath.pop()
+            log.out("Excluding forks because positional issue:", 2, param)
+            log.out(str(startFork) + " (start fork, excluding)", 2, param)
+            log.out(str(endFork) + " (end fork, excluding)", 2, param)
+            
+            if len(cleanPath) > 0:
+                log.out("Popping last fork: " + str(cleanPath[-1]), 2, param)
+                startFork = cleanPath.pop()
+            elif len(singleStrandPath) > i+1:
+                startFork = singleStrandPath[i+1]
+                i = i + 2
             continue
             
         cleanPath.add_fork(startFork)
-        #print("Keeping fork:\t" + str(startFork))
+        log.out("Keeping fork:" + str(startFork), 3, param)
         
         startFork = endFork
         
         if i == len(singleStrandPath)-1:
             cleanPath.add_fork(endFork)
+            
+    log.out("Path cleaning complete.", 1, param)
+    log.out("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", 1, param)
 
     return cleanPath
