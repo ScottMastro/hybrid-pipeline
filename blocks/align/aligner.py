@@ -1,9 +1,10 @@
 import sys
-sys.path.append('./ssw_aligner')
-import ssw_aligner as ssw
+import ssw_aligner
 from reversecomp import reverse_complement
+
+sys.path.append('../')
 import log
-from path import Fork
+from path_helper import Fork
 
 def align(seqA, seqB, posA, posB, alignBuffer, extension, side, printAlignment=False):
     #todo: speedup? pass direction as hint?    
@@ -35,7 +36,7 @@ def align(seqA, seqB, posA, posB, alignBuffer, extension, side, printAlignment=F
         leftB = max(len(seqB) - rightBuffer - leftBuffer, 0) 
     subSeqB = seqB[leftB:rightB]
 
-    results = ssw.align(subSeqB, subSeqA, "B", "A", forward=True, reverse=False)    
+    results = ssw_aligner.align(subSeqB, subSeqA, "B", "A", forward=True, reverse=False)    
     
     leftBReverse = max(posB - rightBuffer, 0)
     rightBReverse = min(posB + leftBuffer, len(seqB))    
@@ -45,18 +46,18 @@ def align(seqA, seqB, posA, posB, alignBuffer, extension, side, printAlignment=F
         leftBReverse = max(len(seqB) - rightBuffer - leftBuffer, 0) 
     subSeqBReverse = seqB[leftBReverse:rightBReverse]
 
-    reverseResults= ssw.align(subSeqBReverse, subSeqA, "B", "A", forward=False, reverse=True)    
+    reverseResults= ssw_aligner.align(subSeqBReverse, subSeqA, "B", "A", forward=False, reverse=True)    
 
     if results[-1] > reverseResults[-1]:
         if printAlignment:
-            ssw.align(subSeqB, subSeqA, "B", "A", forward=True, reverse=False, printResults=True)    
+            ssw_aligner.align(subSeqB, subSeqA, "B", "A", forward=True, reverse=False, printResults=True)    
 
         alnB, alnStartB, alnEndB, aln, \
         alnA, alnStartA, alnEndA, score = results
         direction = 1
     else:
         if printAlignment:
-            ssw.align(subSeqBReverse, subSeqA, "B", "A", forward=False, reverse=True, printResults=True)    
+            ssw_aligner.align(subSeqBReverse, subSeqA, "B", "A", forward=False, reverse=True, printResults=True)    
         
         alnB, alnStartB, alnEndB, aln, \
         alnA, alnStartA, alnEndA, score = reverseResults
@@ -117,24 +118,6 @@ def align(seqA, seqB, posA, posB, alignBuffer, extension, side, printAlignment=F
         return None
     
     return (A+shiftA, 1, B+(shiftB*direction), direction)
-
-def create_bubble(rid, qid, rSeq, qSeq, rstart, rend, qstart, qend, param, alignBuffer=500):
-
-    #block start    
-    log.out("Starting alignment, left.", 3, param, wait=True)
-    startFork = align_left(rid, qid, rSeq, qSeq, rstart, qstart, param, alignBuffer)
-
-    #block end
-    log.out("Starting alignment, right.", 3, param, wait=True)
-    endFork = align_right(rid, qid, rSeq, qSeq, rend, qend, param, alignBuffer)
-    
-    if startFork is None or endFork is None:
-        return (None, None)
-    
-    startFork.switch_reference()
-    endFork.switch_query()
-
-    return (startFork, endFork)
 
 def align_side(rSeq, qSeq, rpos, qpos, side, param, alignBuffer=500):
     extension = 0

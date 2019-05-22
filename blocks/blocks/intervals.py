@@ -13,9 +13,11 @@ class Interval:
         
     def ncomponents(self): return len(self.components)
         
+    def coverage(self): 
+        return sum([component.coverage() for component in self.components])
     def span(self, q=True): 
         return abs(self.start(q) - self.end(q))    
-    def sum(self, q=True): 
+    def span_sum(self, q=True): 
         return sum([component.span(q) for component in self.components])
 
     def get_dir(self, q=True, string=False):
@@ -112,7 +114,7 @@ class Interval:
 
 class Chunk(Interval):
 
-    def __init__(self, cid, rst, red, qst, qed, qid="?", rid="?"):
+    def __init__(self, cid, rst, red, qst, qed, pcid, alen, qid="?", rid="?"):
         
         super().__init__(qid, rid)
         self.id=cid
@@ -120,7 +122,10 @@ class Chunk(Interval):
         self.rend=red
         self.qstart=qst
         self.qend=qed
-    
+        self.pcid=pcid
+        self.pcid=pcid
+        self.alen=alen
+        
     def get_dir(self, q=True, string=False):
         #query is by default + direction
         if q:
@@ -153,6 +158,9 @@ class Chunk(Interval):
     def span(self, q=True): 
         if q: return abs(self.qstart - self.qend)
         return abs(self.rstart - self.rend)
+    
+    def coverage(self): 
+        return self.alen*self.pcid
     
     def closest_corresponding_position(self, basePosition, q=True, side=None): 
         displacement = self.start(q) - basePosition

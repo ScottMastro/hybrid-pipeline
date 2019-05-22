@@ -9,3 +9,10 @@ class Parameters:
         self.BLOCK_DIST_THRESH  =   1.5     #threshold for block insert dist
         self.MEGABLOCK_OVERLAP  =   0.01    #max overlap for megablocks
         self.VERBOSE            =   1       #verbosity
+        self.STATISTICS         =   True    #generate and output statistics
+        
+        self.reports = []
+        
+    def add_report(self, report):
+        if self.STATISTICS:
+            self.reports.append(report)

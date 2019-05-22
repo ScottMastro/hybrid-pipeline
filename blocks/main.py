@@ -1,6 +1,10 @@
-import file_handler as reader
-import contig_stitcher as stitcher
+import sys
+sys.path.append('./align')
 import contig_welder as welder
+sys.path.append('./blocks')
+import contig_stitcher as stitcher
+
+import file_handler as reader
 import contig_scaffolder as scaffolder
 import contig_output as output
 
@@ -8,6 +12,7 @@ from parameters import Parameters
 from Bio import SeqIO
 import sys
 import gzip
+import pickle
 
 #----Parameters-------------------------
 
@@ -21,7 +26,7 @@ if len(sys.argv) > 1 :
 
 else:
     prefix="/home/scott/Dropbox/hybrid-pipeline/blocks"
-    summary_file = prefix + "/summary.txt"
+    summary_file = prefix + "/summary2.txt"
     
     prefix = "/media/scott/Rotom/assembly_data/CF062/"
     #prefix="/media/scott/HDD/sickkids/"
@@ -52,7 +57,7 @@ def main():
     lengthData = {x : len(seqData[x]) for x in seqData.keys()}
     
     aligndf = reader.parse_alignments(summary_file)   
-        
+    
     paths = []
 
     lst = [0,3,4,5,6,8,9,10,11,12,13,14,15]
@@ -66,24 +71,28 @@ def main():
         if contig is None: continue
         path = welder.weld(contig, seqData, lengthData, param)
         paths.append(path)
-    
+        
+    with open('paths2.pickle', 'wb') as handle:
+        pickle.dump(paths, handle)
     
     import copy 
     #paths_ = copy.deepcopy(paths)
     paths = copy.deepcopy(paths_)
-    
+    param = Parameters()
+
     leftovers = []
     scaffolds = []
 
     complete = dict()
     refContigs = list(refData.keys())
     refContigs.sort(key=lambda x: -lengthData[x])
+    tigId='tig00007569_pilon_pilon'
     
     for tigId in refContigs:
         if tigId in complete:
             continue
         
-        scaffold, paths, leftover = scaffolder.scaffold2(paths, tigId, lengthData, param)
+        scaffold, paths, leftover = scaffolder.scaffold(paths, tigId, lengthData, param)
         leftovers = leftovers + leftover
         complete[tigId] = True
         
@@ -95,29 +104,43 @@ def main():
  
             tigId = scaffold[0].rid
             if tigId not in complete:
-                scaffold, paths, leftover = scaffolder.scaffold2(paths, tigId, lengthData, param, scaffold)
+                scaffold, paths, leftover = scaffolder.scaffold(paths, tigId, lengthData, param, scaffold)
                 leftovers = leftovers + leftover
                 complete[tigId] = True
                 flag = False
 
             tigId = scaffold[-1].rid
             if tigId not in complete:
-                scaffold, paths, leftover = scaffolder.scaffold2(paths, tigId, lengthData, param, scaffold)
+                scaffold, paths, leftover = scaffolder.scaffold(paths, tigId, lengthData, param, scaffold)
                 leftovers = leftovers + leftover
                 complete[tigId] = True
                 flag = False
 
         if scaffold is not None:
             scaffolds.append(scaffold)
+
     
+    tg = [len(get_tig_ids(x, source='r')) for x in scaffolds]
+    ln = np.array([path_length(x) for x in scaffolds])
     
-    
-    
+    def fn (path, end=True):
+        x = path [-1] if end else path[0]
+        if(x.after_id() == x.rid):
+            pos = x.after_pos()
+            if x.after_strand() == -1:
+                pos = lengthData[str(x.rid)] - pos
+        else:
+            return -0.1
+        print(str(pos) + " / " + str(lengthData[str(x.rid)]))
+        return pos/lengthData[str(x.rid)]
+        
+    end = [fn(x, True) for x in scaffolds]
+
+            
     
     for scaffold in leftovers:
         if scaffold[0].rid != scaffold[-1].rid:
             print(scaffold[0].rid + " - " + scaffold[-1].rid)
-            
 
     
     pacbioTigs = set()
@@ -133,3 +156,13 @@ def main():
 if __name__== "__main__":
   main()
   print("done")
+
+def pickler():
+    with open('paths2.pickle', 'rb') as handle:
+        paths = pickle.load(handle)
+        
+    
+    
+    with open('paths2.pickle', 'wb') as handle:
+        pickle.dump(paths_, handle)
+    

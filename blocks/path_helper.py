@@ -332,6 +332,33 @@ def can_join_forks(beforeFork, afterFork):
             return False
     return True
 
+def get_tig_ids(path, source=None):
+                       #'r' for ref, 'q' for query, None = both                
+    tigIds = set()
+    for fork in path:
+        if source is None or source == 'r':
+            tigIds.add(fork.rid)
+        if source is None or source == 'q':
+            tigIds.add(fork.qid)
+
+    return tigIds
+
+
+def path_length(path):
+
+    pathSum = 0
+
+    if len(path) >= 2: 
+    
+        prevFork = path[0]
+        
+        for fork in path[1:]:
+            pathSum = pathSum + abs(prevFork.after_pos() - fork.before_pos())
+            prevFork = fork
+        
+    return pathSum
+
+
 def path_overlap(path1, path2, lengthData, source=None):
                                            #'r' for ref, 'q' for query, None = both
     def normalized_pos(fork, tigId):
@@ -450,12 +477,15 @@ def clean_strand(path, lengthData, param):
 def clean_path(path, lengthData, param):
 
     cleanPath = Path()
-
     if len(path) < 1: return cleanPath
     
     log.out("Cleaning path.", 1, param)
     log.out("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", 1, param)
-
+    
+    report = log.ReportSet(log.PATH_CLEAN_ATTEMPT)
+    param.add_report(report)
+    #todo: report
+    
     singleStrandPath = clean_strand(path, lengthData, param)
     startFork = singleStrandPath[0]
         

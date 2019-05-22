@@ -16,11 +16,14 @@ def construct_chunks(row, param):
     red=[int(x) for x in row[6].split(',')]
     qst=[int(x) for x in row[7].split(',')]
     qed=[int(x) for x in row[8].split(',')]
-    
+    length=[int(x) for x in row[11].split(',')]
+    identity=[float(x) for x in row[12].split(',')]
+
     #convert start/end position from chunk to contig
     qst=[(i-1)*param.CHUNK_SIZE + s for i, s in zip(cid, qst)]
     qed=[(i)*param.CHUNK_SIZE - (param.CHUNK_SIZE-e) for i, e in zip(cid, qed)]
-    return [Chunk(cid[i], rst[i], red[i], qst[i], qed[i], qid, rid) for i in range(0, len(cid))]
+    return [Chunk(cid[i], rst[i], red[i], qst[i], qed[i], \
+                  identity[i], length[i], qid, rid) for i in range(0, len(cid))]
 
 def construct_blocks(chunks, param):
     '''
@@ -74,7 +77,7 @@ def construct_blocks(chunks, param):
     trash.sort()
     return (blocks, trash)
 
-def can_collapse(node1, node2, distCutoff=1.5, pseudocount=0, printout=False):
+def can_collapse(node1, node2, distCutoff=1.5, pseudocount=0, maxDist=200000, printout=False):
     
     if(printout):
         print("=====================\nleft=" + node1.__repr__())
@@ -88,7 +91,11 @@ def can_collapse(node1, node2, distCutoff=1.5, pseudocount=0, printout=False):
         leftNode, rightNode = node2, node1
         
     qdist = rightNode.left_pos(q) - leftNode.right_pos(q)
-
+    
+    if printout and qdist > maxDist:
+        print('hit max ' + str(qdist))
+    if qdist > maxDist: return False
+    
     q=False
 
     if (node1.left_pos(q) + node1.right_pos(q)) < \
@@ -98,6 +105,10 @@ def can_collapse(node1, node2, distCutoff=1.5, pseudocount=0, printout=False):
         leftNode, rightNode = node2, node1
         
     rdist = rightNode.left_pos(q) - leftNode.right_pos(q)
+    
+    if printout and rdist > maxDist:
+        print('hit max ' + str(rdist))
+    if rdist > maxDist: return False
     
     if qdist >= 0:
         if rdist >= 0:
@@ -117,11 +128,13 @@ def can_collapse(node1, node2, distCutoff=1.5, pseudocount=0, printout=False):
         num = abs(qdist) + pseudocount
         denom = abs(qdist) + pseudocount
 
-    if printout:
+    if printout and not abs(log(num*1.0/denom*1.0)) < abs(log(distCutoff)):
+        print('=====')
         print("qdist=" + str(qdist))
         print("rdist=" + str(rdist))
         print(str(num) + "/" + str(denom) + "=" + str(num*1.0/denom*1.0))
         print(str(abs(log(num*1.0/denom*1.0))) + " vs " + str(log(distCutoff)))
+
 
     return abs(log(num*1.0/denom*1.0)) < abs(log(distCutoff))
         
@@ -129,18 +142,18 @@ def construct_megablocks(blocks, length, param):
 
     if len(blocks) < 1: return []
 
-    q=True
     mblocks=[]
     
     while len(blocks) > 0:    
         #constructs tree, largest blocks at top
-        sortedBlocks = sorted(blocks, key=lambda block: block.sum(q))
+        sortedBlocks = sorted(blocks, key=lambda block: block.coverage())
         tree = bt.Node(sortedBlocks.pop())
         while len(sortedBlocks) > 0:
             node = bt.Node(sortedBlocks.pop())
             tree.insert(node)
         
-        collapseFn = lambda l, r : can_collapse(l, r, param.BLOCK_DIST_THRESH, length*0.05, printout=False)
+        collapseFn = lambda l, r : can_collapse(l, r, \
+            param.BLOCK_DIST_THRESH, length*0.05, 200000, printout=False)
         
         mblockNodes, mblockTrash = bt.traverse(tree, None, None, collapseFn)
         
@@ -207,12 +220,12 @@ def megablock_collapse(node1, node2, overlapTolerance=0.01):
     return True
                 
                 
-def construct_contig(id, size, mblocks, param, q=True):
+def construct_contig(id, size, mblocks, param):
     
     if len(mblocks) < 1:
         return Contig(id, size, [])
     
-    sortedMblocks = sorted(mblocks, key=lambda mblock: mblock.sum(q))
+    sortedMblocks = sorted(mblocks, key=lambda mblock: mblock.coverage())
     tree = bt.Node(sortedMblocks.pop())
     while len(sortedMblocks) > 0:
         node = bt.Node(sortedMblocks.pop())

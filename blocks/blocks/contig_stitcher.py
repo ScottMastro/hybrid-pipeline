@@ -2,7 +2,6 @@ import numpy as np
 import log
 import block_builder as blocker
 import plot_blocks as plotter
-from gfa_handler import GFA
 
 def stitch(aligndf, qname, param):    
     
@@ -10,6 +9,7 @@ def stitch(aligndf, qname, param):
     #dataframe containing only alignments for one contig
     df = aligndf.loc[aligndf[str(aligndf.columns[0])] == qname]
     if len(df) == 0:
+
         log.out("Contig " + str(qname) + " has no chunk alignments!", 1, param)
         return None
     
@@ -17,7 +17,6 @@ def stitch(aligndf, qname, param):
     
     #row=next(df.iterrows())[1]
     for idx, row in df.iterrows():
-        
         nchunks = int(row[1])
         length = nchunks*param.CHUNK_SIZE
         
@@ -27,7 +26,7 @@ def stitch(aligndf, qname, param):
         mblocks = blocker.construct_megablocks(blocks, length, param)
         mblockList.extend(mblocks)
 
-    contig = blocker.construct_contig(qname, length, mblockList, param, q=True)
+    contig = blocker.construct_contig(qname, length, mblockList, param)
     return contig
 
 def plot(aligndf, qname, param):
@@ -59,7 +58,7 @@ def plot(aligndf, qname, param):
     mblocks = []
     for mblockSublist in mblockList:
         mblocks.extend(mblockSublist)
-    contig = blocker.construct_contig(qname, length, mblocks, param, q=True)
+    contig = blocker.construct_contig(qname, length, mblocks, param)
 
     contigList = []
     for mblockSublist in mblockList:
@@ -70,17 +69,16 @@ def plot(aligndf, qname, param):
         contigList.append(newList)
 
     plotter.plot_levels(blockList, trashList, mblockList, contigList, nchunks,
-                        step=500, outputPath="./plots/" + str(qname) )
+                        step=500, outputPath="/home/scott/Dropbox/hybrid-pipeline/blocks/plots/" + str(qname) )
 
 def stitch_contigs(aligndf, param):
-
-    #gfa = GFA()
 
     qnames=np.unique(aligndf[str(aligndf.columns[0])])
     contigs=dict()
     for qname in qnames:
-        #print("Plotting " + str(qname))
-        #plot(aligndf, qname, param)
+        if(qname > 49000):
+            print("Plotting " + str(qname))
+            plot(aligndf, qname, param)
         
         contigs[qname] = stitch(aligndf, qname, param)
         

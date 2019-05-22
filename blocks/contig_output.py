@@ -1,5 +1,111 @@
 from reversecomp import reverse_complement
 import re
+import log
+
+
+
+
+def analyze_scaffolds(scaffolds, leftovers, lengthData, param):
+
+    def normalize(fork, q=True):
+        pos = fork.qpos if q else fork.rpos
+        strand = (fork.qstrand if q else fork.rstrand)
+        tigId = str(fork.rid if q else fork.qid)
+        
+        if strand == -1: 
+            return lengthData[tigId] - pos
+        return pos
+
+    rtails = 0
+    tigs = dict()
+    rtigs = set()
+    rtigsEnds = set()
+
+    for scaffold in scaffolds + leftovers:
+
+    
+        rtigsEnds.add(scaffold[0].rid)
+        rtigsEnds.add(scaffold[-1].rid)
+        printed=False
+        for fork in scaffold:
+            rtigs.add(fork.rid)
+            
+            if not printed and fork.rid == "tig00983269_pilon_pilon":
+                print(scaffold.__repr__())
+                printed=True
+    
+    rtigsDiff = rtigs.difference(rtigsEnds)
+'''
+ 
+   for scaffold in scaffolds:
+
+        firstFork = scaffold[0]
+        rlen = lengthData[str(firstFork.rid)]
+        #rstrand =  fork.rstrand
+        print( firstFork )
+
+        rtail = firstFork.rpos
+        rtails = rtails + rtail
+        print(rtail)
+        if firstFork.rid in tigs: tigs[firstFork.rid] = tigs[firstFork.rid] +1
+        else: tigs[firstFork.rid] = 1
+        
+        
+        
+        normalize(firstFork, q=False)
+        
+        id = fork.before_id()
+        pos = fork.before_pos()
+        seq = seqData[str(id)]
+        if fork.before_strand() == -1:
+            pos = len(seq) - pos
+
+        forkSeq = seq[pos-nbases:pos+nbases]
+
+        if fork.before_strand() == -1:
+            forkSeq = reverse_complement(forkSeq)
+        
+        print(forkSeq[:nbases] + nbases*"-" + source)
+        print(forkSeq + source)
+        
+        #---------------------
+        
+        source = " CANU" if fork.switch == 'r' else " NOVA"
+
+        id = fork.after_id()
+        pos = fork.after_pos()
+        seq = seqData[str(id)]
+        if fork.after_strand() == -1:
+            pos = len(seq) - pos
+
+        forkSeq = seq[pos-nbases:pos+nbases]
+
+        if fork.after_strand() == -1:
+            forkSeq = reverse_complement(forkSeq)
+        
+        print(forkSeq + source)       
+        print(nbases*"-" + forkSeq[nbases:] + source)
+
+def sequence_validation(sequences):
+    f = open("validate.fasta", "w+")
+    i = 0
+    for sequence in sequences:
+        
+        if len(sequence) < 3001:
+            f.write(">segment" + "_" + str(i) + "\n")
+            f.write(re.sub("(.{64})", "\\1\n", sequence, 0, re.DOTALL) + "\n")
+        else:
+            f.write(">segment" + "_" + str(i) + "start\n")
+            f.write(re.sub("(.{64})", "\\1\n", sequence[:1000], 0, re.DOTALL) + "\n")
+            f.write(">segment" + "_" + str(i) + "end\n")
+            f.write(re.sub("(.{64})", "\\1\n", sequence[-1000:], 0, re.DOTALL) + "\n")
+
+        i = i + 1
+    f.close()      
+'''
+
+
+
 
 def validate_forks(path, seqData, nbases=25):
 
@@ -149,3 +255,74 @@ def output_contigs(tigList, seqData, file):
         f.write(re.sub("(.{64})", "\\1\n", seqData[tigId], 0, re.DOTALL) + "\n")
     f.close()   
     return
+
+
+
+def nfix_report_output(param):
+    successes=0
+    fails=0
+    reasons=dict()
+    left=0
+    right=0
+
+    for reportSet in param.reports:
+        
+        if reportSet.type == log.NFIX_ATTEMPT:
+            print(reportSet.reports)
+            if reportSet.success():
+                successes = successes + 1
+            else:
+                fails = fails + 1
+                for report in reportSet:
+                    if not report.success:
+                        reason = report.details[log.REASON]
+                        if reason in reasons: reasons[reason] = reasons[reason] + 1
+                        else: reasons[reason] = 1
+                        
+                        if report.details[log.SIDE] == log.RIGHT:
+                            right = right + 1
+                        elif report.details[log.SIDE] == log.LEFT:
+                            left = left + 1
+            
+    print("--N FIXING RESULTS--")
+    print("successes = "  + str(successes))
+    print("fails = "  + str(fails))
+    print("left fails = "  + str(left) + "    right fails = " + str(right))
+    for key in reasons.keys():
+        print(str(key) + " = "  + str(reasons[key]))
+
+
+
+def scaffold_report_output(param):
+    successes=0
+    fails=0
+    reasons=dict()
+
+    for reportSet in param.reports:
+        if reportSet.type == log.SCAFFOLD_ATTEMPT:
+            if reportSet.has_success():
+                successes = successes + 1
+            else:
+                fails = fails + 1
+                report = reportSet[-1]
+                reason = report.details[log.REASON]
+                if reason in reasons: reasons[reason] = reasons[reason] + 1
+                else: reasons[reason] = 1
+            
+                if reason == log.OVERLAP:
+                    print (reportSet.details)
+                    
+            
+    print("--SCAFFOLDING RESULTS--")
+    print("successes = "  + str(successes))
+    print("fails = "  + str(fails))
+    for key in reasons.keys():
+        print(str(key) + " = "  + str(reasons[key]))
+        
+    
+    
+    
+    
+    
+
+

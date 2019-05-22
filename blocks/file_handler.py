@@ -4,18 +4,11 @@ csv.field_size_limit(999999999)
 
 def parse_alignments(csv_file):
     
-    colnames = ["Query sequence ID", 
-                "Total number of chunks",
-                "Subject sequence ID",
-                "Subject sequence length",
-                "Parts aligning to subject sequence", 
-                "Start of alignment in subject", 
-                "End of alignment in subject", 
-                "Start of alignment in query", 
-                "End of alignment in query", 
+    colnames = ["qid", "qsize", "rid", "rlen",
+                "chunks",  "rstart", "rend", 
+                "qstart", "qend", 
                 "First part aligning to subject",
-                "Total number of aligning parts",
-                "Length of query alignment per part"]
+                "nchunks", "alen", "pcid"]
     
     df = pd.read_csv(csv_file, header=None, names=colnames, sep="\t", engine="python")
     return df

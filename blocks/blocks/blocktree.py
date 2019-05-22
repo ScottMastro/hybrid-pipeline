@@ -129,14 +129,16 @@ def traverse(node, prevNodeL, prevNodeR, collapseFn):
         return([],[])
     
     flagL, flagR = True, True
-    
+    flagLrecurse, flagRrecurse = False, False
+
     if prevNodeL is not None:
         flagL = collapseFn(prevNodeL, node)
         
         #continue down tree to try and recover node
-        if not flagL:
-            left, _ = traverse(node.l, prevNodeL, node, collapseFn)
-            if len(left) > 1:
+        if not flagL:  
+            left, leftTrash = traverse(node.l, prevNodeL, node, collapseFn)
+            flagLrecurse = True
+            if len(left) > 0:
                 flagL = collapseFn(left[-1], node)    
         
     if prevNodeR is not None:
@@ -144,13 +146,16 @@ def traverse(node, prevNodeL, prevNodeR, collapseFn):
     
         #continue down tree to try and recover node
         if not flagR:
-            right, _ = traverse(node.r, node, prevNodeR, collapseFn)
-            if len(right) > 1:
+            right, rightTrash = traverse(node.r, node, prevNodeR, collapseFn)
+            flagRrecurse = True
+            if len(right) > 0:
                 flagR = collapseFn(node, right[0])    
 
     if flagL and flagR:
-        left, leftTrash = traverse(node.l, prevNodeL, node, collapseFn)
-        right, rightTrash = traverse(node.r, node, prevNodeR, collapseFn)
+        if not flagLrecurse:
+            left, leftTrash = traverse(node.l, prevNodeL, node, collapseFn)
+        if not flagRrecurse:
+            right, rightTrash = traverse(node.r, node, prevNodeR, collapseFn)
         return (left + [node] + right, leftTrash + rightTrash)
     else:
         left, leftTrash = traverse(node.l, prevNodeL, prevNodeR, collapseFn)
