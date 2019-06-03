@@ -23,7 +23,7 @@ def anchor_ends_side(side, path, block, seqData, param):
         rpos = block.end(q=False)
         qpos = block.end(q=True)
         
-    log.out("Aligning " + sideName + " of contig " + str(qid) + " to " + str(rid) + ".", 1, param)
+    log.out("Aligning " + sideName + " of contig " + str(qid) + " to " + str(rid) + ".", 2, param)
 
     report = log.Report(log.ALIGNMENT_ATTEMPT)
     report.add_detail(log.QID, str(qid))
@@ -70,12 +70,25 @@ def anchor_ends(path, contig, seqData, param):
     endFork, endReport = anchor_ends_side('r', path, contig.mblocks[-1], seqData, param)
 
     if startFork is not None:
-        startFork.switch_query()
-        path.add_fork_front(startFork)
+        startFork.switch_query()     
+        if len(path) > 0:
+            if path[0].before_pos() < startFork.after_pos():
+                path.pop(0)
+            else:
+                path.add_fork_front(startFork)
+        else:
+            path.add_fork_front(startFork)
 
     if endFork is not None:
         endFork.switch_reference()
-        path.add_fork(endFork)
+        if len(path) > 0:
+            if path[-1].after_pos() > endFork.before_pos():
+                path.pop()
+            else:
+                path.add_fork(endFork)
+        else:
+            path.add_fork(endFork)
+
         
     report = log.ReportSet(log.END_ANCHOR_ATTEMPT, [startReport, endReport])
     param.add_report(report)

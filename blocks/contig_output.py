@@ -1,7 +1,70 @@
 from reversecomp import reverse_complement
 import re
 import log
+import numpy as np
+import matplotlib.pyplot as plt
+import random
+import matplotlib.patheffects as pe
+import path_helper as ph
 
+def plot_identity(contig, outputPath=None):
+    
+    if len(contig.mblocks) < 1:
+        return
+    
+    qid = contig.mblocks[0].qid
+    identities=[]
+    avg=[]
+
+    blockidx=[]
+    fig = plt.figure()
+
+    for mblock in contig.mblocks:
+        c=int(255*random.random())
+        for block in mblock:
+            ids = block.percent_identities()
+            identities.extend(ids)
+            avg.extend([np.mean(ids)] * len(ids))
+            blockidx.extend([c] * len(ids))
+
+    y = np.array(identities)
+    g = np.array(blockidx)
+    n=len(identities)
+    x = np.array(range(n))
+    
+    minval=94
+    #wsize=n/500
+    #w=np.array([ np.mean(y[max(0,i-int(wsize/2)):min(n-1, i+int(wsize/2))]) for i in range(n)])
+    #w=100-w+minval
+    w=np.array(avg)
+    plt.plot(x,w, linewidth=1, alpha=0.75, color="black", \
+             path_effects=[pe.Stroke(linewidth=5, foreground='white', alpha=0.7), pe.Normal()])
+
+    plt.scatter(x, y, c=g, alpha=0.4, s=1)
+    plt.ylim((minval,100))
+    
+    if outputPath is not None:
+        fig.savefig(outputPath + str(qid) + ".png")
+    
+    plt.close('all')
+ 
+def analyze_paths(paths, lengthData, param):
+
+    lens = []
+    ridCount = []
+    
+    for path in paths:
+
+        rids = set()
+        for fork in path:
+            rids.add(fork.qid)
+        ridCount.append(len(rids))
+        lens.append(ph.path_length(path))
+    
+    ridCount=[x for _,x in sorted(zip(lens,ridCount))]
+    lens=[x for x in sorted(lens)]
+
+    plt.scatter(range(len(lens)), np.log10(lens), s=np.array(ridCount)*np.array(ridCount), alpha=0.5, c=np.array(ridCount)*100)
 
 
 

@@ -15,10 +15,54 @@ class Interval:
         
     def coverage(self): 
         return sum([component.coverage() for component in self.components])
+    
+    def coverage_between(self, pos1, pos2, q=True): 
+        return sum([component.coverage_between(pos1, pos2, q) for component in self.components])
+    
     def span(self, q=True): 
+        if len(self) < 1: return 0
         return abs(self.start(q) - self.end(q))    
-    def span_sum(self, q=True): 
+    def span_sum(self, q=True):
+        if len(self) < 1: return 0
         return sum([component.span(q) for component in self.components])
+    
+    def percent_identity(self): 
+        return sum([x.percent_identity() for x in self.components])/len(self.components)
+    def percent_identities(self): 
+        return [x.percent_identity() for x in self.components]
+
+    def should_trim(self, position, side, q=True):
+        if side == 'l':
+            if self.right(q) < position:
+                return True
+        elif side == 'r':
+            if self.left(q) > position:
+                return True
+        return False
+
+    def trim_left(self, position, q=True):
+        i=0
+        while i < len(self):
+            if self[i].should_trim(position, 'l', q):
+                self.components.pop(i)
+            else: 
+                self[i].trim_left(position, q)
+                if len(self[i]) < 1:
+                    self.components.pop(i)
+                else:
+                    i = i+1
+                    
+    def trim_right(self, position, q=True):
+        i=0
+        while i < len(self):
+            if self[i].should_trim(position, 'r', q):
+                self.components.pop(i)
+            else: 
+                self[i].trim_right(position, q)
+                if len(self[i]) < 1:
+                    self.components.pop(i)
+                else:
+                    i = i+1
 
     def get_dir(self, q=True, string=False):
         if(self.start(q) < self.end(q)):
@@ -27,7 +71,21 @@ class Interval:
             return "-" if string else -1
         else:
             return "?" if string else 0
-    
+        
+    def is_consistent(self, q=True):
+        
+        dist=0
+        revDist=0
+        for i in range(len(self.components)-1):
+            dist = dist + abs(self.components[i].end(q) - self.components[i+1].start(q))
+            revDist = revDist + abs(self.components[i].start(q) - self.components[i+1].end(q))
+
+        if revDist < dist:
+            return False
+        
+        return True
+
+        
     def sort(self):
         self.components.sort()
         self.sorted=True
@@ -123,7 +181,6 @@ class Chunk(Interval):
         self.qstart=qst
         self.qend=qed
         self.pcid=pcid
-        self.pcid=pcid
         self.alen=alen
         
     def get_dir(self, q=True, string=False):
@@ -160,11 +217,48 @@ class Chunk(Interval):
         return abs(self.rstart - self.rend)
     
     def coverage(self): 
-        return self.alen*self.pcid
+        return (self.alen*self.pcid)/100.0
+    def coverage_between(self, pos1, pos2, q=True):
+        if pos1 < pos2:
+            minPos, maxPos = pos1, pos2
+        else:
+            minPos, maxPos = pos2, pos1
+            
+        o1 = max(0, minPos - self.left(q) )
+        o2 = max(0, self.right(q) - maxPos)
+        o = o1+o2
+        
+        if o > self.span(q):
+            return 0
+        
+        return (self.span(q) - o)*(self.alen*self.pcid)/100.0
+
+    def trim_left(self, position, q=True):
+        return
+    def trim_right(self, position, q=True):
+        return
+        
+    def should_trim(self, position, side, q=True):
+        if side == 'l':
+            if self.left(q) < position:
+                return True
+        elif side == 'r':
+            if self.right(q) > position:
+                return True
+        return False
+    
+    def percent_identity(self): 
+        return self.pcid
     
     def closest_corresponding_position(self, basePosition, q=True, side=None): 
         displacement = self.start(q) - basePosition
-        return self.start(not q) - displacement*self.get_dir(not q)
+        
+        direction = self.get_dir(not q) * self.get_dir(q)
+        
+        return self.start(not q) - displacement*direction
+
+    def __len__(self):
+        return 1
 
     def __repr__(self):
         return str(self.id) +  " (" + str(self.qstart) + "-" + str(self.qend) + ")"
@@ -183,33 +277,13 @@ class Block(Interval):
         self.add(chunk)
         self.rdir=chunk.get_dir(q=False)
     
-    def trim_left(self, n):
-        if not self.sorted: self.sort()
-        
-        if n >= len(self.components):
-            self.components = []
-        elif self.rdir == 1:
-            self.components = self.components[n:]
-        else:
-            self.components = self.components[:-n]
-    
-    def trim_right(self, n):
-        if not self.sorted: self.sort()
-
-        if n >= len(self.components):
-            self.components = []
-        elif self.rdir == 1:
-            self.components = self.components[:-n]
-        else:
-            self.components = self.components[n:]   
-    
     def nchunk(self): return len(self)
     def nchunk_from(self, start):
         n=0
         for chunk in self.components:
             if chunk.id > start: n = n+1
         return n         
-            
+                
     def __repr__(self):
         if len(self.components) == 0: return "Empty"
         return str(self.left_id()) + "-" + str(self.right_id())
@@ -229,25 +303,7 @@ class Megablock(Interval):
             super().__init__()        
         self.components = blocks
 
-    '''
-    def left_block(self): 
-        if(self.blocks[0].left_q() < self.blocks[-1].left_q()):
-            return self.blocks[0]
-        else:
-            return self.blocks[-1]
-    def right_block(self): 
-        if(self.blocks[0].left_q() < self.blocks[-1].left_q()):
-            return self.blocks[-1]
-        else:
-            return self.blocks[0]
-    '''
-    
-    '''
-    def cov_size(self, q=True): return sum([block.size_q() for block in self.blocks])
-    def cov_size_r(self): return sum([block.size_r() for block in self.blocks])    
-    def size_q(self): return abs(self.left_q() - self.right_q())
-    def size_r(self): return abs(self.left_r() - self.right_r())
-    '''    
+
     def __repr__(self):
         return str(self.components) 
 

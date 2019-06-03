@@ -77,6 +77,8 @@ class Node:
         return self.data.sum(self.q)
     def span(self, q=True): 
         return self.data.span(self.q)
+    def get_dir(self, q=True):
+        return self.data.get_dir(q)
 
     def to_list(self):
         return self.l.to_list() if self.l is not None else [] + \

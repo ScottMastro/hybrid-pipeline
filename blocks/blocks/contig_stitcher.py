@@ -2,106 +2,137 @@ import numpy as np
 import log
 import block_builder as blocker
 import plot_blocks as plotter
+import copy
+from intervals import Contig
 
-def stitch(aligndf, qname, param):    
+def stitch(aligndf, tigId, param):    
     
-    #QUERY ONLY TODO
+    #QUERY ONLY
     #dataframe containing only alignments for one contig
-    df = aligndf.loc[aligndf[str(aligndf.columns[0])] == qname]
+    df = aligndf.loc[aligndf[str(aligndf.columns[0])] == tigId]
     if len(df) == 0:
-
-        log.out("Contig " + str(qname) + " has no chunk alignments!", 1, param)
+        log.out("Contig " + str(tigId) + " has no chunk alignments!", 1, param)
         return None
     
     mblockList=[]
     
     #row=next(df.iterrows())[1]
     for idx, row in df.iterrows():
+        
+        #if row[2] == 'tig00032236_pilon_pilon':
+        #    break
+        
         nchunks = int(row[1])
         length = nchunks*param.CHUNK_SIZE
         
         chunks = blocker.construct_chunks(row, param)
         blocks, trash = blocker.construct_blocks(chunks, param)
-        blocks = blocker.remove_redundancy(blocks, param)            
-        mblocks = blocker.construct_megablocks(blocks, length, param)
+        blocks = blocker.remove_overlap(blocks, param)            
+        mblocks = blocker.construct_megablocks2(blocks, length, param)
         mblockList.extend(mblocks)
 
-    contig = blocker.construct_contig(qname, length, mblockList, param)
+    mblockList = blocker.clean_megablocks(mblockList, param)
+
+    contig = Contig(tigId, length, mblockList)
+
     return contig
 
-def plot(aligndf, qname, param):
-
-    df = aligndf.loc[aligndf[str(aligndf.columns[0])] == qname]
+def stitch_r(aligndf, rname, param, mblockOnly=False):    
     
+    #REF ONLY
+    #dataframe containing only alignments for one contig
+    df = aligndf.loc[aligndf[str(aligndf.columns[2])] == rname]
+    if len(df) == 0:
+        log.out("Contig " + str(rname) + " has no chunk alignments!", 1, param)
+        return None
+    
+    mblockList=[]
+    
+    #row=next(df.iterrows())[1]
+    for idx, row in df.iterrows():
+        length = row[3]
+        
+        chunks = blocker.construct_chunks(row, param)
+        blocks, trash = blocker.construct_blocks(chunks, param)
+        mblocks = blocker.construct_megablocks2(blocks, length, param)
+        mblockList.extend(mblocks)
+
+    if mblockOnly:
+        return(mblockList)
+
+    contig = blocker.construct_contig(rname, length, mblockList, param, q=False)
+    return contig
+
+def plot(aligndf, tigId, param, q=True):
+
+    if q:
+        df = aligndf.loc[aligndf[str(aligndf.columns[0])] == tigId]
+    else:
+        df = aligndf.loc[aligndf[str(aligndf.columns[2])] == tigId]
+
     blockList=[]
     trashList=[]
     mblockList=[]
+    mblockListCopy=[]
     
     #row=next(qdf.iterrows())[1]
     for idx, row in df.iterrows():
         
         nchunks = int(row[1])
-        length = nchunks*param.CHUNK_SIZE
+        length = nchunks*param.CHUNK_SIZE if q else int(row[3])
         
         chunks = blocker.construct_chunks(row, param)
         blocks, trash = blocker.construct_blocks(chunks, param)
+
+        blockList.append(copy.deepcopy(blocks))
+        trashList.append(copy.deepcopy(trash))
         
-        blockList.append(blocks)
-        trashList.append(trash)
+        blocks = blocker.remove_overlap(blocks, param)            
 
-        blocks = blocker.remove_redundancy(blocks, param)            
-        mblocks = blocker.construct_megablocks(blocks, length, param)
+        mblocks = blocker.construct_megablocks2(blocks, length, param)
+        mblockList.append(copy.deepcopy(mblocks))
+        mblockListCopy.extend(mblocks)
 
-        mblockList.append(mblocks)
-
-
-    mblocks = []
-    for mblockSublist in mblockList:
-        mblocks.extend(mblockSublist)
-    contig = blocker.construct_contig(qname, length, mblocks, param)
+    mblockListCopy = blocker.clean_megablocks(mblockListCopy, param)
 
     contigList = []
-    for mblockSublist in mblockList:
-        newList = []
-        for mblock in mblockSublist:
-            if mblock in contig.mblocks:
-                newList.append(mblock)
-        contigList.append(newList)
+    for mblocks in mblockList:
+        if len(mblocks) < 1:
+            contigList.append([])
+            continue
+        tig = mblocks[0].rid if q else mblocks[0].qid
+        lst = []
+        for mblocksCopy in mblockListCopy:
+            tigCopy = mblocksCopy[0].rid if q else mblocksCopy[0].qid
+            if tig == tigCopy:
+                lst.append(mblocksCopy)
+                
+        contigList.append(lst)
+        
+    print('Generating plot')
+    if q:
+        plotter.plot_levels(blockList, trashList, mblockList, contigList, nchunks,
+                            step=500,  \
+                            #outputPath="/home/scott/Dropbox/hybrid-pipeline/blocks/plots/"  \
+                            outputPath="/media/scott/Rotom/assembly_data/plots/" \
+                            #outputPath="/media/scott/HDD/sickkids/NA24385/plots/" \
+                            + str(tigId))
+    else:
+        plotter.plot_levels_r(blockList, trashList, mblockList, contigList, length,
+                            step=500, 
+                            #outputPath="/home/scott/Dropbox/hybrid-pipeline/blocks/plotscanu/" \
+                            outputPath="/media/scott/Rotom/assembly_data/plots/" \
+                            #outputPath="/media/scott/HDD/sickkids/NA24385/plots/" \
+                            + str(tigId))
 
-    plotter.plot_levels(blockList, trashList, mblockList, contigList, nchunks,
-                        step=500, outputPath="/home/scott/Dropbox/hybrid-pipeline/blocks/plots/" + str(qname) )
-
-def stitch_contigs(aligndf, param):
+def plot_contigs(aligndf, param):
 
     qnames=np.unique(aligndf[str(aligndf.columns[0])])
-    contigs=dict()
-    for qname in qnames:
-        if(qname > 49000):
-            print("Plotting " + str(qname))
-            plot(aligndf, qname, param)
+    rnames=np.unique(aligndf[str(aligndf.columns[2])])
+    q=True
         
-        contigs[qname] = stitch(aligndf, qname, param)
+    for tigId in qnames if q else rnames:
+
+        print("Plotting " + str(tigId))
+        plot(aligndf, tigId, param, q)
         
-        #gfa = add_contig(contigs[-1], gfa, isQuery=True)
-
-    #gfa.write("hello.gfa")
-
-    return contigs
-
-    
-'''
-import sys
-import file_handler as fh
-
-if len(sys.argv) > 1 :
-    summary_file=sys.argv[1]  #input
-    block_file = sys.argv[2]  #output
-else:
-    #prefix="C:/Users/scott/Dropbox/hybrid-pipeline/blocks"
-    prefix="/home/scott/Dropbox/hybrid-pipeline/blocks"
-    summary_file = prefix + "/summary.txt"
-    block_file = prefix + "/blocks_new.txt"
-
-index = 0
-aligndf = fh.parse_alignments(summary_file)   
-'''

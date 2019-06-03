@@ -45,7 +45,7 @@ def scaffold_pair(path, nextPath, side, nextSide, lengthData, param):
 
     reports =  []
         
-    for shift in [0,2]:
+    for shift in [0,1,2,3]:
         report = log.Report(log.SCAFFOLD_ATTEMPT)
         reports.append(report)
         idx = 0 if side == 1 else -1

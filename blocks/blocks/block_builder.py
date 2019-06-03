@@ -1,5 +1,5 @@
 import blocktree as bt
-from math import log
+import math
 from intervals import Chunk
 from intervals import Block
 from intervals import Megablock
@@ -32,6 +32,7 @@ def construct_blocks(chunks, param):
     '''
     blocks = []
     trash = []
+    minPcId = param.MIN_PERCENT_ID
 
     while len(chunks) > 0:
          
@@ -47,13 +48,19 @@ def construct_blocks(chunks, param):
             idSkip = idDist-1
             allowableGap = max(param.MAX_DIST_CHUNK, idSkip*param.CHUNK_SKIP_BP)
             bpDist = abs(chunk.rstart - nextChunk.rstart) - param.CHUNK_SIZE
-
+            pcId = nextChunk.pcid
+            
             #chunk id improper
             if idDist < 1: continue         
-            if idSkip > param.CHUNK_SKIP: break
+            if idSkip > param.CHUNK_SKIP: 
+                break
             
             #bp gap too big
             if bpDist > allowableGap:
+                continue
+            
+            #percent identity too low
+            if pcId < minPcId:
                 continue
 
             #chunk oriented incorrectly            
@@ -77,67 +84,102 @@ def construct_blocks(chunks, param):
     trash.sort()
     return (blocks, trash)
 
-def can_collapse(node1, node2, distCutoff=1.5, pseudocount=0, maxDist=200000, printout=False):
-    
-    if(printout):
-        print("=====================\nleft=" + node1.__repr__())
-        print("right=" + node2.__repr__())
 
-    q=True
+def get_dist(node1, node2, q=True):
+    
     if (node1.left_pos(q) + node1.right_pos(q)) < \
-        (node2.left_pos(q) + node2.right_pos(q)):
-            leftNode, rightNode = node1, node2
+    (node2.left_pos(q) + node2.right_pos(q)):
+        leftNode, rightNode = node1, node2  
     else:
-        leftNode, rightNode = node2, node1
+        rightNode, leftNode = node1, node2
+   
+    dist = rightNode.left_pos(q) - leftNode.right_pos(q)
+    
+    if node1.data.get_dir(q) != node2.data.get_dir(q):
         
-    qdist = rightNode.left_pos(q) - leftNode.right_pos(q)
-    
-    if printout and qdist > maxDist:
-        print('hit max ' + str(qdist))
-    if qdist > maxDist: return False
-    
-    q=False
+        d2 = rightNode.right_pos(q) - leftNode.right_pos(q)
+        d3 = rightNode.left_pos(q) - leftNode.left_pos(q)
 
-    if (node1.left_pos(q) + node1.right_pos(q)) < \
-        (node2.left_pos(q) + node2.right_pos(q)):
-            leftNode, rightNode = node1, node2
-    else:
-        leftNode, rightNode = node2, node1
+        if abs(d2) < abs(dist): dist = d2
+        if abs(d3) < abs(dist): dist = d3
         
-    rdist = rightNode.left_pos(q) - leftNode.right_pos(q)
+    return dist
     
-    if printout and rdist > maxDist:
-        print('hit max ' + str(rdist))
-    if rdist > maxDist: return False
+
+def can_collapse(node1, node2, distCutoff=1.5, pseudocountFactor=0.6, maxDist=200000, printout=False):
+    pseudocount = max(1000, min(node1.span(), node2.span()) * pseudocountFactor)
+   
+    qdist = get_dist(node1, node2, q=True)
+
+    if qdist > maxDist:
+        if printout: print('hit max ' + str(qdist))
+        return False
     
-    if qdist >= 0:
-        if rdist >= 0:
-            #no overlap
-            num = abs(qdist) + pseudocount
-            denom = abs(rdist) + pseudocount
-        else:
-            #ref overlaps
-            num = abs(qdist) + pseudocount
-            denom = abs(rdist) + abs(qdist) + pseudocount
-    elif rdist >= 0:
-        #query overlaps
-        num = abs(qdist) + abs(rdist) + pseudocount
-        denom = abs(rdist) + pseudocount
+    rdist = get_dist(node1, node2, q=False)
+        
+    if rdist > maxDist: 
+        if printout: print('hit max ' + str(rdist))
+        return False
+    
+    if (qdist > 0 and rdist < 0) or (qdist < 0 and rdist > 0):
+        num = abs(rdist) + abs(qdist) + pseudocount
+        denom = pseudocount
     else:
-        #both overlap
         num = abs(qdist) + pseudocount
-        denom = abs(qdist) + pseudocount
-
-    if printout and not abs(log(num*1.0/denom*1.0)) < abs(log(distCutoff)):
+        denom = abs(rdist) + pseudocount
+        
+    if abs(rdist) < 1001 or abs(qdist) < 1001:
+        distCutoff=distCutoff*2
+        
+    if printout and not abs(math.log(num*1.0/denom*1.0)) < math.log(distCutoff):
         print('=====')
         print("qdist=" + str(qdist))
         print("rdist=" + str(rdist))
         print(str(num) + "/" + str(denom) + "=" + str(num*1.0/denom*1.0))
-        print(str(abs(log(num*1.0/denom*1.0))) + " vs " + str(log(distCutoff)))
+        print(str(abs(math.log(num*1.0/denom*1.0))) + " vs " + str(math.log(distCutoff)))
 
 
-    return abs(log(num*1.0/denom*1.0)) < abs(log(distCutoff))
+    return abs(math.log(num*1.0/denom*1.0)) < abs(math.log(distCutoff))
+
+def get_dist2(leftNode, rightNode, q=True):
+    
+    leftDir = leftNode.data.get_dir(q)
+    rightDir = rightNode.data.get_dir(q)
+    
+    if leftDir == 1:
+        if rightDir == 1:
+            return rightNode.left_pos(q) - leftNode.right_pos(q)
+        else:
+            return rightNode.right_pos(q) - leftNode.right_pos(q)
+    else:
+        if rightDir == 1:
+            return rightNode.left_pos(q) - leftNode.left_pos(q)
+        else:
+            return rightNode.left_pos(q) - leftNode.right_pos(q)
+
+def get_dist_min(leftNode, rightNode, q=True):
+    
+    dist1 = abs(rightNode.left_pos(q) - leftNode.right_pos(q))
+    dist2 = abs(rightNode.right_pos(q) - leftNode.right_pos(q))
+    dist3 = abs(rightNode.left_pos(q) - leftNode.left_pos(q))
+    dist4 = abs(rightNode.right_pos(q) - leftNode.left_pos(q))
+    return min (dist1, dist2, dist3, dist4)
+    
+
+def can_collapse2(node1, node2, distCutoff=2.0, maxQueryDist=2000000, maxRefDist=50000):
+   
+    rdist = get_dist2(node1, node2, q=False)
+    qdist = get_dist_min(node1, node2, q=True)
+    
+    if abs(qdist) > maxQueryDist or abs(rdist) > maxRefDist:
+        return False
+    
+    ratio = (abs(qdist)+1000.0)/(abs(rdist)+1000)
+    if abs(math.log(ratio)) < abs(math.log(distCutoff)):        
+        return True
         
+    return True
+
 def construct_megablocks(blocks, length, param):
 
     if len(blocks) < 1: return []
@@ -149,95 +191,342 @@ def construct_megablocks(blocks, length, param):
         sortedBlocks = sorted(blocks, key=lambda block: block.coverage())
         tree = bt.Node(sortedBlocks.pop())
         while len(sortedBlocks) > 0:
-            node = bt.Node(sortedBlocks.pop())
+            node = bt.Node(sortedBlocks.pop(), q=False)
             tree.insert(node)
         
-        collapseFn = lambda l, r : can_collapse(l, r, \
-            param.BLOCK_DIST_THRESH, length*0.05, 200000, printout=False)
-        
+        #collapseFn = lambda l, r : can_collapse2(l, r, \
+        #    param.BLOCK_DIST_THRESH, 0.6, 200000, printout=False)
+
+        collapseFn = lambda l, r : can_collapse2(l, r)
+
         mblockNodes, mblockTrash = bt.traverse(tree, None, None, collapseFn)
         
         if len(mblockNodes) < 1:
             continue
         
-        mblock = Megablock([node.data for node in mblockNodes ])    
+        mblock = Megablock([node.data for node in mblockNodes ])
+        if mblock.get_dir(q=True) == -1:
+            mblock.components = mblock.components[::-1]
+            
         mblocks.append(mblock)
         blocks = [node.data for node in mblockTrash ]
         
     return mblocks
 
 
-#todo:should we do this???
-def remove_redundancy(blocks, param):
+def get_dist_block(leftBlock, rightBlock, q=True):
+    
+    leftDir = leftBlock.get_dir(q)
+    rightDir = rightBlock.get_dir(q)
+    
+    return rightBlock.left(q) - leftBlock.right(q)
+
+    
+    if leftDir == 1:
+        if rightDir == 1:
+            return rightBlock.left(q) - leftBlock.right(q)
+        else:
+            return rightBlock.right(q) - leftBlock.right(q)
+    else:
+        if rightDir == 1:
+            return rightBlock.left(q) - leftBlock.left(q)
+        else:
+            return rightBlock.left(q) - leftBlock.right(q)
+
+
+def construct_megablocks2(blocks, length, param):
+    if len(blocks) < 1: return []
+
+    mblocks=[]
+    
+    blocks.sort(key=lambda block: block.left(q=False), reverse=True)
+    block = blocks.pop()
+    mblock = [block]
+    
+    maxrDist=20000
+    maxqDist=200000
+    percentLen = 0.05
+    
+    def add_mblock(mblock, nextBlock, reason=None):
+        mblocks.append(Megablock(mblock))
+        mblock = [nextBlock]
+        
+        #if reason is not None:
+         #   print(mblocks[-1].__repr__())
+           # print(reason)
+        return mblock
+    
+    while len(blocks) > 0:
+        
+        nextBlock = blocks.pop()
+
+        #print(block.__repr__() + " vs " + nextBlock.__repr__())
+
+        rdist = get_dist_block(block, nextBlock, q=False)
+        if rdist > abs(maxrDist):
+            mblock = add_mblock(mblock, nextBlock, reason="rdist: " + str(rdist))
+        else:
+            dist1 = abs(nextBlock.left(q=True) - block.right(q=True))
+            dist2 = abs(nextBlock.right(q=True) - block.right(q=True))
+            dist3 = abs(nextBlock.left(q=True) - block.left(q=True))
+            dist4 = abs(nextBlock.right(q=True) - block.left(q=True))
+            qdist = min (dist1, dist2, dist3, dist4)
+            
+            if qdist > min(maxqDist, percentLen*length):
+                mblock = add_mblock(mblock, nextBlock, reason="qdist: " + str(qdist))
+            else:
+                mblock.append(nextBlock)
+        
+        block = nextBlock
+    
+    mblocks.append(Megablock(mblock))
+
+    for mb in mblocks:
+        mb.components.sort(key=lambda block: block.left(q=True))
+
+    return mblocks
+
+def join_megablocks(mblockList, param):
+    if len(mblockList) < 1: return []
+
+    mblocks=[]
+    
+    mblockList.sort(key=lambda megablock: megablock.left(q=True), reverse=True)
+
+    for mblock in mblockList:
+        mblock.components.sort(key=lambda block: block.left(q=False))
+        #if more than 2 blocks, we want to respect the order of the query
+        if not mblock.is_consistent(q=False):
+            mblock.components = mblock.components[::-1]
+    
+    maxDist=10000000
+
+    megablock = mblockList.pop()
+        
+    while len(mblockList) > 0:
+        
+        nextMegablock = mblockList.pop()
+    
+        if megablock.rid != nextMegablock.rid:
+            mblocks.append(megablock)
+        else:
+            rdist = get_dist_block(megablock, nextMegablock, q=False)
+            if rdist > maxDist:
+                mblocks.append(megablock)
+            else:
+                megablock.components = megablock.components + nextMegablock.components
+                continue
+            
+        megablock = nextMegablock
+                            
+    mblocks.append(megablock)
+        
+    
+    for mblock in mblocks:
+        mblock.components.sort(key=lambda block: block.left(q=False))
+        #if more than 2 blocks, we want to respect the order of the query
+        if not mblock.is_consistent(q=False):
+            mblock.components = mblock.components[::-1]
+
+    return mblocks
+
+def clean_megablocks(mblockList, param):
+    if len(mblockList) < 1: return []
+
+    mblocks=[]
+    
+    mblockList.sort(key=lambda megablock: megablock.left(q=True), reverse=True)
+    megablock = mblockList.pop()
+            
+    overlapTolerance = 100
+    minSpan = 5000
+
+    skip=False
+    
+    while len(mblockList) > 0:
+        
+        if not skip:
+            nextMegablock = mblockList.pop()
+        else: skip = False
+            
+        #print(str(megablock.__repr__()) + " vs " + str(nextMegablock.__repr__()))
+        
+        pos1 = megablock.right(q=True)
+        pos2 = nextMegablock.left(q=True)
+        
+        if pos2 + overlapTolerance < pos1:
+            
+            cov1 = megablock.coverage_between(pos1, pos2, q=True) #* \
+               # math.log(megablock.span_sum(q=True), 100)
+            cov2 = nextMegablock.coverage_between(pos1, pos2, q=True) #* \
+               # math.log(megablock.span_sum(q=True), 100)
+                
+            if cov1 > cov2:
+                nextMegablock.trim_left(pos1, q=True)
+                if nextMegablock.span(q=True) < minSpan:
+                    continue
+            else:
+                megablock.trim_right(pos2, q=True)
+                if megablock.span(q=True) < minSpan:
+                    if len(mblocks) > 0:
+                        megablock = mblocks.pop()
+                        skip = True
+                    else:
+                        megablock = nextMegablock
+                    continue
+            
+        mblocks.append(megablock)
+        megablock = nextMegablock
+                            
+    mblocks.append(megablock)
+            
+    return join_megablocks(mblocks, param)   
+            
+
+def trim_overlap_query(blocks, param):
 
     i=0
     while ( i < len(blocks)-1 ):
-        
-        x = blocks[i+1].left_id() - blocks[i].right_id()
-        
+        block = blocks[i]
+        nextBlock=blocks[i+1]
+        overlap = block.right_id() - nextBlock.left_id()
         #no overlap
-        if x > 0:
+        if overlap < 0:
             i = i + 1 
             continue
         
-        #overlapping
-        if x <= 0:
-            #one repeated chunk
-            if x == 0:
-                overlapSize = blocks[i+1].right(q=True) - blocks[i].left(q=True)
-                overlapStart = blocks[i].right(q=True)
-                overlapEnd = blocks[i+1].left(q=True)
-                if abs((overlapEnd - overlapStart) / overlapSize) < param.CHUNK_OVERLAP:
-                    i = i + 1 
-                    continue
+        #one repeated chunk
+        if overlap == 0:
+            overlapSize = nextBlock.right(q=True) - block.left(q=True)
+            overlapStart = block.right(q=True)
+            overlapEnd = nextBlock.left(q=True)
+            if abs((overlapEnd - overlapStart) / overlapSize) < param.CHUNK_OVERLAP:
+                i = i + 1 
+                continue
+        
+        if overlap > 0:
             
-            #left block is bigger
-            if(blocks[i].nchunk() > blocks[i+1].nchunk()):
-                blocks[i+1].trim_left(-x + 1)
-                if(blocks[i+1].nchunk() < param.CHUNK_PER_BLOCK):
+            blockCov = block.coverage()
+            nextBlockCov = nextBlock.coverage()
+                        
+            #left block is better
+            if(blockCov > nextBlockCov):
+                blocks[i+1].trim_left(block.right(q=True) )
+                #blocks[i+1].components = nextBlock[overlap+1:]
+                if len(blocks[i+1]) < param.CHUNK_PER_BLOCK:
                     blocks.pop(i+1)
-            #right block is bigger
+            #right block is better
             else:
-                blocks[i].trim_right(-x + 1)
-                if(blocks[i].nchunk() < param.CHUNK_PER_BLOCK):
+                blocks[i].trim_right(nextBlock.left(q=True) )
+                #blocks[i].components = block[:-(overlap+1)]
+                if len(blocks[i]) < param.CHUNK_PER_BLOCK:
                     blocks.pop(i)
             
     return blocks
 
+def trim_blocks(blocks, param, q=True):
+
+    i=0
+    while ( i < len(blocks)-1 ):
+        overlap = blocks[i].right(q) - blocks[i+1].left(q)
+
+        if overlap > 0:
+
+            blockCov = blocks[i].coverage()
+            nextBlockCov = blocks[i+1].coverage()
+                        
+            #left block is better
+            if(blockCov > nextBlockCov):
+                blocks[i+1].trim_left(blocks[i].right(q), q)
+                if len(blocks[i+1]) < param.CHUNK_PER_BLOCK:
+                    blocks.pop(i+1)
+                    continue
+                    
+            #right block is better
+            else:
+                blocks[i].trim_right(blocks[i+1].left(q), q)
+                #blocks[i].components = block[:-(overlap+1)]
+                if len(blocks[i]) < param.CHUNK_PER_BLOCK:
+                    blocks.pop(i)
+                    continue
+            
+        i = i + 1 
+
+    return blocks
+
+def remove_overlap(blocks, param):
+    blocks.sort(key=lambda x: x.left(q=True))
+    blocks = trim_blocks(blocks, param, q=True)
+    blocks = trim_blocks(blocks, param, q=True)
+    blocks.sort(key=lambda x: x.left(q=False))
+    blocks = trim_blocks(blocks, param, q=False)
+    blocks.sort()
+    return blocks
 
 
-def megablock_collapse(node1, node2, overlapTolerance=0.01):
-   
-    dist = node2.left_pos() - node1.right_pos() 
+def megablock_collapse(node1, node2, overlapTolerance=0.2, q=True):
+    return True
+    pos1 = node1.right_pos(q)
+    pos2 = node2.left_pos(q)
+    dist = pos2 - pos1 
 
     #overlap
     if dist < 0:
-        smaller= min(node1.span(), node2.span())
-        
-        if abs(dist/smaller) > overlapTolerance:
+        smaller = min(node1.span(q), node2.span(q))
+
+        if abs(dist/(smaller+1)) > overlapTolerance:
             return False
-    
+            
     return True
                 
                 
-def construct_contig(id, size, mblocks, param):
+def construct_contig(tigId, size, mblockList, param, q=True):
     
-    if len(mblocks) < 1:
-        return Contig(id, size, [])
+    if len(mblockList) < 1:
+        return Contig(tigId, size, [])
     
-    sortedMblocks = sorted(mblocks, key=lambda mblock: mblock.coverage())
-    tree = bt.Node(sortedMblocks.pop())
+    sortedMblocks = sorted(mblockList, key=lambda mblock: mblock.coverage())
+    tree = bt.Node(sortedMblocks.pop(), q)
     while len(sortedMblocks) > 0:
-        node = bt.Node(sortedMblocks.pop())
+        node = bt.Node(sortedMblocks.pop(), q)
         tree.insert(node)
     
-    collapseFn = lambda l, r : megablock_collapse(l, r, param.MEGABLOCK_OVERLAP)
+    collapseFn = lambda l, r : megablock_collapse(l, r, param.MEGABLOCK_OVERLAP, q)
     mblockNodes, trashNodes = bt.traverse(tree, None, None, collapseFn)
     
     if len(mblockNodes) < 1:
         return Contig(id, size, [])
     
     contig = Contig(id, size, [node.data for node in mblockNodes])
+
     #todo: recover trash???
+    return contig
+
+def trim_overlaps_contig(contig, param, q=True):
+    i=0
+    while i < len(contig.mblocks)-1:
+        megablock = contig.mblocks[i]
+        nextMegablock = contig.mblocks[i+1]
     
+        pos1 = megablock.right(q)
+        pos2 = nextMegablock.left(q)
+        
+        cov1 = megablock.coverage_between(pos1, pos2, q)
+        cov2 = nextMegablock.coverage_between(pos1, pos2, q)
+    
+        if cov1 > cov2:
+            nextMegablock.trim_left(pos1)
+            if len(nextMegablock) < 1:
+                contig.mblocks.pop(i+1)
+                continue
+        else:
+            megablock.trim_right(pos2)
+            if len(megablock) < 1:
+                contig.mblocks.pop(i)
+                continue
+            
+        i = i + 1
+                
+        
+                
     return contig

@@ -1,64 +1,6 @@
 from reversecomp import reverse_complement
 import log
-import uuid
-
-class Node:
-    def __init__(self, fork):
-        self.fork = fork
-        self.prevNode = []
-        self.nextNode = []
-        self.id = str(uuid.uuid4())
-        
-    def add_next_main(self, node):
-        self.nextNode = [node] + self.nextNode
-    def add_prev_main(self, node):
-        self.prevNode = [node] + self.prevNode
-
-    def add_next(self, node):
-        self.nextNode.append(node)
-    def add_prev(self, fork):
-        self.prevNode.append(fork)
-        
-    def __str__(self):
-        return self.fork.__str__()
-        
-class Graph:
-    def __init__(self, path=None):
-        self.nodes = []
-        self.nodeEnds = []
-        self.start = None
-
-        if path is not None:
-            prev = None
-            for fork in path:
-                node = Node(fork)
-                if prev is not None:
-                    self.nodes[-1].add_next(node)
-                    node.add_prev(prev)
-                    
-                self.nodes.append(node)
-                prev = node
-
-        if len(self.nodes) > 0:
-            self.nodeEnds.append(self.nodes[0])       
-            self.start = self.nodes[0]
-        if len(self.nodes) > 1:
-            self.nodeEnds.append(self.nodes[-1]) 
-        
-    def get_start(self):
-        return self.start
-    
-    def __str__(self):
-        string = ""
-        nd = self.start
-        while True:
-            string = string + nd.__str__() + \
-            " (" + str(len(nd.prevNode)) + "," + str(len(nd.nextNode)) + ")\n"
-            if len(nd.nextNode) <= 0:
-                break
-            nd = nd.nextNode[0]
-        return string
-
+import matplotlib.pyplot as plt
 
 class Path:
     def __init__(self):
@@ -232,8 +174,9 @@ class Path:
     
         return forks        
 
+
 class Fork:
-    def __init__(self, qid, qpos, qstrand, rid, rpos, rstrand):
+    def __init__(self, qid, qpos, qstrand, rid, rpos, rstrand, Nfork=False):
         self.qid = qid
         self.qpos = qpos
         self.qstrand = qstrand
@@ -242,13 +185,21 @@ class Fork:
         self.rpos = rpos
         self.rstrand = rstrand
         self.switch = "q"
+        self.Nfork = Nfork
+             
+    def is_Nfork(self):
+        return self.Nfork
         
     def switch_query(self):
         self.switch = "q"
+    def is_switch_query(self):
+        return self.switch == "q"
 
     def switch_reference(self):
         self.switch = "r"
-        
+    def is_switch_reference(self):
+        return self.switch ==  "r"
+
     def before_id(self):
         return self.rid if self.switch == "q" else self.qid
     def after_id(self):
@@ -270,6 +221,10 @@ class Fork:
         self.switch = "r" if self.switch == "q" else "q"
 
     def flip_strands(self, lengthData, makeCopy=False):
+        
+        if self.Nfork:
+            if makeCopy: return get_Nfork()
+            return
         
         if makeCopy:
             flipped = Fork(self.qid, self.qpos, self.qstrand, \
@@ -318,6 +273,14 @@ class Fork:
     def __str__(self):
         return self.__repr__()
     
+    
+def get_Nfork():
+    return Fork("NNN", -1, 0, "NNN", -1, 0, Nfork=True)
+def get_Npath():
+    p = Path()
+    p.add_fork(get_Nfork())
+    return p
+    
 def can_join_forks(beforeFork, afterFork):
     
     if not beforeFork.after_id() == afterFork.before_id():
@@ -357,6 +320,31 @@ def path_length(path):
             prevFork = fork
         
     return pathSum
+
+
+def plot_length(path, lengthData, printout=True):
+
+    pathSum = 0
+    x=[]
+    y=[]
+    if len(path) >= 2: 
+        prevFork = path[0]
+        
+        for fork in path[1:]:
+            print(fork)
+            pos = fork.qpos
+            if fork.qstrand == -1:
+                pos = lengthData[str(fork.qid)] - pos
+            pathSum = pathSum + abs(prevFork.after_pos() - fork.before_pos())
+            
+            x.append(pos)
+            y.append(pathSum)
+            if printout:
+                print(str(pathSum) + " / " + str(pos) + "  " + str(round(pathSum/pos,2)))
+            
+            prevFork = fork
+    
+    plt.scatter(x,y)
 
 
 def path_overlap(path1, path2, lengthData, source=None):
@@ -424,7 +412,6 @@ def clean_strand(path, lengthData, param):
     
     log.out("Fixing strand orientation.", 2, param)
 
-    
     startFork = path[0]
     flipStrand = False
     
@@ -476,21 +463,25 @@ def clean_strand(path, lengthData, param):
 
 def clean_path(path, lengthData, param):
 
-    cleanPath = Path()
-    if len(path) < 1: return cleanPath
-    
+    if len(path) < 1: return Path()
+
     log.out("Cleaning path.", 1, param)
     log.out("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", 1, param)
     
+    cleanPath = Path()
+
     report = log.ReportSet(log.PATH_CLEAN_ATTEMPT)
     param.add_report(report)
-    #todo: report
     
     singleStrandPath = clean_strand(path, lengthData, param)
     startFork = singleStrandPath[0]
-        
+    skip = False
+    
     for i in range(1, len(singleStrandPath)):
-
+        if skip:
+            skip=False
+            continue
+        
         endFork = singleStrandPath[i]
     
         log.out("New pair:\t" + str(startFork) + "\t" + str(endFork), 3, param)
@@ -510,18 +501,38 @@ def clean_path(path, lengthData, param):
             continue
 
         if startFork.after_pos() > endFork.before_pos():
-            #this could happen if sets of NNNs are close
             log.out("Excluding forks because positional issue:", 2, param)
-            log.out(str(startFork) + " (start fork, excluding)", 2, param)
-            log.out(str(endFork) + " (end fork, excluding)", 2, param)
+
+            #this could happen if sets of NNNs are close
+            #if startFork.is_switch_query():
+            if startFork.switch == 'q':
+
+                log.out(str(startFork) + " (start fork, excluding)", 2, param)
+                log.out(str(endFork) + " (end fork, excluding)", 2, param)
+                
+                if len(cleanPath) > 0:
+                    log.out("Popping last fork: " + str(cleanPath[-1]), 2, param)
+                    startFork = cleanPath.pop()
+                elif len(singleStrandPath) > i+1:
+                    startFork = singleStrandPath[i+1]
+                    skip=True
+                continue
             
-            if len(cleanPath) > 0:
-                log.out("Popping last fork: " + str(cleanPath[-1]), 2, param)
-                startFork = cleanPath.pop()
-            elif len(singleStrandPath) > i+1:
-                startFork = singleStrandPath[i+1]
-                i = i + 2
-            continue
+            #this could happen if blocks overlap
+            #if startFork.is_switch_reference():
+            if startFork.switch == 'r':
+
+                if len(cleanPath) > 0:
+                    log.out("Popping and removing last fork: " + str(cleanPath[-1]), 2, param)
+                    cleanPath.pop()
+
+                log.out(str(startFork) + " (start fork, excluding)", 2, param)
+                log.out(str(endFork) + " (end fork, try to match)", 2, param)
+                
+                startFork = endFork
+                continue
+
+            
             
         cleanPath.add_fork(startFork)
         log.out("Keeping fork:" + str(startFork), 3, param)
