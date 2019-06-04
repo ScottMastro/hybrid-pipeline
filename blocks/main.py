@@ -8,6 +8,7 @@ import file_handler as reader
 import contig_scaffolder as scaffolder
 import contig_output as output
 from path_helper import clean_path
+import path_helper
 
 from parameters import Parameters
 from Bio import SeqIO
@@ -68,86 +69,159 @@ def main():
     aligndf = reader.parse_alignments(summary_file)   
     
     paths = []
-
+    smallPaths = []
+    
     for tigId in queryData.keys():
         print(tigId)
         tigId = int(tigId)
         #if(tigId < 100612): 
         #   continue
-        if lengthData[str(tigId)] < 111210:
-            continue
         contig = stitcher.stitch(aligndf, tigId, param)
         if contig is None: continue
         #output.plot_identity(contig, outputPath="/home/scott/Dropbox/hybrid-pipeline/blocks/idplots/")
     
         path = welder.weld(contig, seqData, lengthData, param)
-        paths.append(path)
+        
+        if len(path)>1:
+            if lengthData[str(tigId)] > 10000:
+                paths.append(path)
+            else:
+                smallPaths.append(path)
 
 
-        cleanPath = clean_path(path, lengthData, param)
 
-      
+
+        #cleanPath = clean_path(path, lengthData, param)
+
         
     
     '''
-    with open('giabpaths.pickle', 'wb') as handle:
+    with open('giabpath10k.pickle', 'wb') as handle:
         pickle.dump(paths, handle)
+    with open('giabpathsmall.pickle', 'wb') as handle:
+        pickle.dump(smallPaths, handle)
+
     '''
-
-    # paths_ = copy.deepcopy(paths)
-
+    '''
+    with open('giabpath10k.pickle', 'rb') as handle:
+        pths = pickle.load(handle)
+    with open('giabpathsmall.pickle', 'rb') as handle:
+        smallPaths = pickle.load(handle)
+    
+    paths = []
+    for path in pths: 
+        if len(path) > 1: paths.append(path)
+    
+    paths_ = copy.deepcopy(paths)
     paths = copy.deepcopy(paths_)
-    # paths = [x for x in [path if path_length(path) > 100000 else None for path in paths] if x is not None]
+
+    '''
+    
+    
+    
+    with open('giabpath10k.pickle', 'rb') as handle:
+        p1 = pickle.load(handle)
+    with open('giabpathsmall.pickle', 'rb') as handle:
+        p2 = pickle.load(handle)
+    
+    cutoff=1e6
+    paths=[]
+    shortPaths=[]
+    allPaths=[]
+    for p in p1 + p2:
+        if len(p) < 1: continue
+    
+    
+        #clean up unnecessary NNNs
+        #--------------------------
+        if p[0].is_Nfork():
+            p.pop(0)
+        if p[-1].is_Nfork():
+            p.pop()
+            
+        i=0
+        toPop = []
+        for fork in p:
+            if fork.is_Nfork():
+                if p[i-1].after_id() == p[i+1].before_id() and \
+                    p[i-1].after_strand() == p[i+1].before_strand() and \
+                    p[i-1].is_switch_reference() and p[i+1].is_switch_query() and \
+                    p[i-1].after_pos() <= p[i+1].before_pos():
+                        toPop.append(i)
+            i = i+1
+
+        c=0
+        for i in toPop:
+            p.pop(i-c)
+            c = c +1
+    
+        #--------------------------
+
+        if path_helper.path_length(p) > cutoff:
+            paths.append(p)
+        else:
+            shortPaths.append(p)
+        
+    allPaths = copy.deepcopy(paths + shortPaths)
 
     param = Parameters()
 
-    '''
-    with open('giabdirty.pickle', 'rb') as handle:
-        paths = pickle.load(handle)
-        
-    '''
-
-
-    leftovers = []
-    scaffolds = []
-
-    complete = dict()
     refTigIds = list(refData.keys())
     queryTigIds = list(queryData.keys())
 
     refTigIds.sort(key=lambda x: -lengthData[x])
     queryTigIds.sort(key=lambda x: -lengthData[x])
 
-    for tigId in refTigIds:
-        if tigId in complete:
-            continue
+    repeat = 0
+    
+    while repeat < 2:
         
-        scaffold, paths, leftover = scaffolder.scaffold(paths, tigId, lengthData, param)
-        leftovers = leftovers + leftover
-        complete[tigId] = True
+        scaffolds = []
+        complete = dict()
+
+        for tigId in refTigIds:
+            if tigId in complete:
+                continue
+            
+            scaffold, paths, leftover = scaffolder.scaffold(paths, tigId, lengthData, param)
+            paths = paths + leftover
+            complete[tigId] = True
+            
+            flag = False
+            while not flag:
+                flag = True
+                if scaffold is None or len(scaffold) <= 0:
+                    break
+     
+                if not scaffold[0].is_Nfork():
+                    tigId = scaffold[0].rid
+                    if tigId not in complete:
+                        scaffold, paths, leftover = scaffolder.scaffold(paths, tigId, lengthData, param, scaffold)
+                        paths = paths + leftover
+                        complete[tigId] = True
+                        flag = False
+    
+                if not scaffold[-1].is_Nfork():
+                    tigId = scaffold[-1].rid
+                    if tigId not in complete:
+                        scaffold, paths, leftover = scaffolder.scaffold(paths, tigId, lengthData, param, scaffold)
+                        paths = paths + leftover
+                        complete[tigId] = True
+                        flag = False
+    
+            if scaffold is not None:
+                scaffolds.append(scaffold)
+            
+        if repeat == 0:
+            paths = scaffolds + smallPaths
         
-        flag = False
-        while not flag:
-            flag = True
-            if scaffold is None or len(scaffold) <= 0:
-                break
- 
-            tigId = scaffold[0].rid
-            if tigId not in complete:
-                scaffold, paths, leftover = scaffolder.scaffold(paths, tigId, lengthData, param, scaffold)
-                leftovers = leftovers + leftover
-                complete[tigId] = True
-                flag = False
-
-            tigId = scaffold[-1].rid
-            if tigId not in complete:
-                scaffold, paths, leftover = scaffolder.scaffold(paths, tigId, lengthData, param, scaffold)
-                leftovers = leftovers + leftover
-                complete[tigId] = True
-                flag = False
-
-        if scaffold is not None:
-            scaffolds.append(scaffold)
+        repeat = repeat + 1
+            
+            
+            
+            
+            
+            
             
             
             

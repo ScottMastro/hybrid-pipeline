@@ -418,8 +418,6 @@ def join_paths2(paths, lengthData, param):
                     paths[i+1].flip_strands(lengthData)
                     
                     if i+2 >= len(paths): continue
-                    print(paths)
-                    print(i)
                     p3 = paths[i+2]
                     if p3 is None or len(p3) < 1 or p3[0].is_Nfork(): 
                         continue
@@ -484,9 +482,9 @@ def join_paths2(paths, lengthData, param):
         #remove both forks
         if path[-1].after_id() != blockPath[0].before_id() and \
             path[-1].is_switch_reference() and blockPath[0].is_switch_query():
-                print("popping:")
-                print(path[-1])
-                print(blockPath[0])
+                #print("popping:")
+                #print(path[-1])
+                #print(blockPath[0])
                 path.pop()
                 blockPath.pop(0)
                 
@@ -568,10 +566,10 @@ def weld(contig, seqData, lengthData, param):
     path = join_paths2(paths, lengthData, param)
     #path = anchor_ends(path, contig, seqData, param)
     ok = check_path(path)
-    print(ok)
     
     if not ok:
-        input()
+        print(ok)
+        #input()
         
     return path
     

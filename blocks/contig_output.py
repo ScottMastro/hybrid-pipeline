@@ -98,6 +98,8 @@ def analyze_scaffolds(scaffolds, leftovers, lengthData, param):
                 printed=True
     
     rtigsDiff = rtigs.difference(rtigsEnds)
+        
+    
 '''
  
    for scaffold in scaffolds:
@@ -167,8 +169,20 @@ def sequence_validation(sequences):
     f.close()      
 '''
 
-
-
+def plot_scaffold_hist(scaffoldList):
+    if len(scaffoldList) > 3:
+        scaffoldList = [scaffoldList]
+    alpha=1
+    for scaffolds in scaffoldList:
+        x=np.array([ph.path_length(path) for path in scaffolds])
+        plt.hist(np.log10(x), bins=50, alpha=alpha)
+        alpha=0.5
+    plt.show()
+    plt.close("all")
+    
+    
+    
+    
 
 def validate_forks(path, seqData, nbases=25):
 

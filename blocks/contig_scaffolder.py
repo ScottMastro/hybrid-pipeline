@@ -171,7 +171,7 @@ def scaffold_all(path, validPaths, tigId, lengthData, normalize, param):
             i = i+1
             nextPos1 = normalize(nextPath[0])
             nextPos2 = normalize(nextPath[-1])
-            
+                        
             if pos1 is not None:
                 if nextPos1 is not None:
                     if abs(pos1 - nextPos1) < smallDist:
@@ -236,6 +236,8 @@ def filter_paths(paths, tigId, lengthData, param):
 
 
 def normalize_pos(fork, tigId, length):
+    if fork.is_Nfork(): return None
+
     pos = fork.get_pos_by_id(tigId)
     if pos is None: return None
     if fork.get_strand_by_id(tigId) == -1:

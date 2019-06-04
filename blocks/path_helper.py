@@ -306,7 +306,6 @@ def get_tig_ids(path, source=None):
 
     return tigIds
 
-
 def path_length(path):
 
     pathSum = 0
@@ -316,13 +315,19 @@ def path_length(path):
         prevFork = path[0]
         
         for fork in path[1:]:
-            pathSum = pathSum + abs(prevFork.after_pos() - fork.before_pos())
+            if not fork.is_Nfork() and not prevFork.is_Nfork():
+                pathSum = pathSum + abs(prevFork.after_pos() - fork.before_pos())
             prevFork = fork
         
-    return pathSum
+    return max(1, pathSum)
 
+def plot_length_all(paths, lengthData, outputPath):
+    
+    outputPath="/media/scott/HDD/sickkids/NA24385/correlation/"
+    for path in paths:
+        plot_length(path, lengthData, printout=False, outputPath=outputPath)
 
-def plot_length(path, lengthData, printout=True):
+def plot_length(path, lengthData, printout=True, outputPath=None):
 
     pathSum = 0
     x=[]
@@ -331,20 +336,28 @@ def plot_length(path, lengthData, printout=True):
         prevFork = path[0]
         
         for fork in path[1:]:
-            print(fork)
-            pos = fork.qpos
-            if fork.qstrand == -1:
-                pos = lengthData[str(fork.qid)] - pos
-            pathSum = pathSum + abs(prevFork.after_pos() - fork.before_pos())
-            
-            x.append(pos)
-            y.append(pathSum)
+            if not fork.is_Nfork() and not prevFork.is_Nfork():
+                pos = fork.qpos
+                if fork.qstrand == -1:
+                    pos = lengthData[str(fork.qid)] - pos
+                pathSum = pathSum + abs(prevFork.after_pos() - fork.before_pos())
+                
+                x.append(pos)
+                y.append(pathSum)
+                
             if printout:
+                print(fork)
                 print(str(pathSum) + " / " + str(pos) + "  " + str(round(pathSum/pos,2)))
             
             prevFork = fork
-    
+            
     plt.scatter(x,y)
+    if outputPath is not None:
+        plt.savefig(outputPath + str(path[0].qid) + ".png")
+        plt.close('all')
+    else:
+        plt.show()
+        plt.close('all')
 
 
 def path_overlap(path1, path2, lengthData, source=None):
