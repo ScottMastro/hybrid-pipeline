@@ -267,3 +267,56 @@ def scaffold(paths, tigId, lengthData, param, startPath=None):
     return (path, invalidPaths, leftovers)
     
     
+
+def remove_overlap(masterPath, slavePath, lengthData, source=None):
+                                       #'r' for ref, 'q' for query, None = both
+    def normalized_pos(fork, tigId):
+        pos = fork.get_pos_by_id(tigId)
+        if pos is None: return None
+        if fork.get_strand_by_id(tigId) == -1:
+            pos = lengthData[str(tigId)] - pos
+        return pos
+    
+    def fill_dict(path):
+        starts = dict()
+        ends = dict()
+        for fork in path:
+            if source is None :
+                tigIds = [fork.before_id(), fork.after_id()]
+            else:
+                tigIds = ([fork.rid] if source == 'r' else []) + \
+                 ([fork.qid] if source == 'q' else [])
+                 
+            for tigId in tigIds:
+                pos = normalized_pos(fork, tigId)
+                tigId = str(tigId)
+                if tigId not in starts:
+                    starts[tigId] = pos
+                    ends[tigId] = pos
+                else:
+                    if pos < starts[tigId]: starts[tigId] = pos
+                    if pos > ends[tigId]: ends[tigId] = pos
+        return (starts,ends)
+               
+    starts1, ends1 = fill_dict(masterPath)
+    starts2, ends2 = fill_dict(slavePath)
+
+    for tigId in set(starts1.keys()).union(set(starts2.keys())):
+        if tigId in starts1 and tigId in starts2:
+            start = max(starts1[tigId], starts2[tigId])
+            end = min(ends1[tigId], ends2[tigId])
+
+            while len(slavePath) > 0:
+                pos = normalized_pos(slavePath[0], tigId)
+                if pos is not None:
+                    if pos >= start and pos <= end:
+                        slavePath.pop(0)
+                        continue
+                pos = normalized_pos(slavePath[-1], tigId)
+                if pos is not None:
+                    if pos >= start and pos <= end:
+                        slavePath.pop()
+                        continue
+                break
+            
+

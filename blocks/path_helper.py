@@ -360,7 +360,7 @@ def plot_length(path, lengthData, printout=True, outputPath=None):
         plt.close('all')
 
 
-def path_overlap(path1, path2, lengthData, source=None):
+def path_overlap(path1, path2, lengthData, source=None, printInfo=False):
                                            #'r' for ref, 'q' for query, None = both
     def normalized_pos(fork, tigId):
         pos = fork.get_pos_by_id(tigId)
@@ -393,7 +393,6 @@ def path_overlap(path1, path2, lengthData, source=None):
     starts1, ends1 = fill_dict(path1)
     starts2, ends2 = fill_dict(path2)
 
-
     overlap = 0.0
     total1 = 0.0
     total2 = 0.0
@@ -402,16 +401,20 @@ def path_overlap(path1, path2, lengthData, source=None):
             start = max(starts1[tigId], starts2[tigId])
             end = min(ends1[tigId], ends2[tigId])
             overlap = overlap + max(0, end - start)
-            #print(tigId)
-            #print(str(start) + " - " + str(end))
-            #print (overlap)
+            
+            if printInfo:
+                start = max(starts1[tigId], starts2[tigId])
+                end = min(ends1[tigId], ends2[tigId])
+
+                print(tigId + ": " + str(start) + " - " + str(end) + \
+                      "(" + str(overlap) + ")")
             
         if tigId in starts1:
             total1 = total1 + abs(ends1[tigId] - starts1[tigId])
         if tigId in starts2:
             total2 = total2 + abs(ends2[tigId] - starts2[tigId])
         
-    return (overlap/(total1 +1), overlap/(total2 +1))
+    return (overlap/max(total1, 1), overlap/max(total2, 1))
         
 def clean_strand(path, lengthData, param):
 

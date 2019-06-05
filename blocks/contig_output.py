@@ -180,9 +180,33 @@ def plot_scaffold_hist(scaffoldList):
     plt.show()
     plt.close("all")
     
-    
-    
-    
+def plot_scaffold_line(scaffoldList):
+    if len(scaffoldList) > 3:
+        scaffoldList = [scaffoldList]
+    alpha=1
+    for scaffolds in scaffoldList:
+        y = np.sort(np.array([ph.path_length(path) for path in scaffolds]))[::-1]
+        x = np.array(range(len(y)))
+        z = [np.sum(y[:n]) for n in x]
+        
+        plt.plot(np.log10(x), z, alpha=alpha)
+        alpha=0.5
+    plt.show()
+    plt.close("all") 
+        
+def plot_scaffold_line2(scaffoldList):
+    if len(scaffoldList) > 3:
+        scaffoldList = [scaffoldList]
+    alpha=1
+    for scaffolds in scaffoldList:
+        y = np.sort(np.array([ph.path_length(path) for path in scaffolds]))[::-1]
+        x = np.array(range(len(y)))
+        z = [np.sum(y[:n]) for n in x]
+        
+        plt.plot(x, z, alpha=alpha)
+        alpha=0.5
+    plt.show()
+    plt.close("all") 
 
 def validate_forks(path, seqData, nbases=25):
 
@@ -318,6 +342,57 @@ def path_to_sequence(path, seqData, file=None, invert=False):
         f.write(re.sub("(.{64})", "\\1\n", "".join(sequence), 0, re.DOTALL) + "\n")
         f.close()   
         return 
+    
+    return (sequence, source)
+
+
+def path_to_sequence2(path, seqData):
+    sequence = []
+    source = []
+    
+    def add_seq(startFork, endFork):
+        
+        if startFork.is_Nfork() or endFork.is_Nfork():
+            sequence.append("N"*32)
+            source.append("N"*32)
+            return
+        
+        tigId = startFork.after_id()
+        start = startFork.after_pos()
+        end = endFork.before_pos()
+        strand = startFork.after_strand()
+        src = startFork.after_switch()        
+        
+        if(startFork.after_strand() != endFork.before_strand()):
+            print(startFork)
+            print(endFork)
+
+            print("strand issue")
+            input()
+            
+        seq = seqData[str(tigId)]
+        
+        if strand == -1:
+            start = len(seq) - start
+            end = len(seq) - end
+            start, end = end, start
+            
+        segment = seq[start:end]
+        if strand == -1:
+            segment = reverse_complement(segment)
+
+        sequence.append(segment)
+        source.append(src*len(segment))
+    
+    startFork = None
+    endFork = path[0]     
+    
+    for fork in path[1:]:
+        startFork = endFork
+        endFork = fork
+        add_seq(startFork, endFork)
+
+    #add_seq(endFork, path.tail())
     
     return (sequence, source)
 

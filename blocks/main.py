@@ -7,7 +7,6 @@ import contig_stitcher as stitcher
 import file_handler as reader
 import contig_scaffolder as scaffolder
 import contig_output as output
-from path_helper import clean_path
 import path_helper
 
 from parameters import Parameters
@@ -16,7 +15,7 @@ import sys
 import gzip
 import pickle
 import copy 
-
+import re
 #----Parameters-------------------------
 
 if len(sys.argv) > 1 :
@@ -124,7 +123,7 @@ def main():
     with open('giabpathsmall.pickle', 'rb') as handle:
         p2 = pickle.load(handle)
     
-    cutoff=1e6
+    cutoff=0.5e6
     paths=[]
     shortPaths=[]
     allPaths=[]
@@ -213,147 +212,99 @@ def main():
                 scaffolds.append(scaffold)
             
         if repeat == 0:
-            paths = scaffolds + smallPaths
+            paths = scaffolds + shortPaths
         
         repeat = repeat + 1
             
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-    canuTigs = dict()       
-    for tigId in refData.keys():
-        print(tigId)
-        contig = stitcher.stitch_r(aligndf, tigId, param )
-        if contig is None: continue
-        canuTigs[tigId] = contig
+    '''
+     with open('scaffolds.pickle', 'wb') as handle:
+        pickle.dump(scaffolds, handle)
+      
+    with open('scaffolds.pickle', 'rb') as handle:
+        scaffolds = pickle.load(handle)
 
-            
-    for tigId in queryTigIds:
-        if tigId in complete:
-            continue
-        
-        canuTigs['tig00001060_pilon_pilon'].mblocks[0].qid
-        
-        
-        scaffold, paths, leftover = scaffolder.scaffold(paths, tigId, lengthData, param)
-        leftovers = leftovers + leftover
-        complete[tigId] = True
-        
-        flag = False
-        while not flag:
-            flag = True
-            if scaffold is None or len(scaffold) <= 0:
-                break
- 
-            tigId = scaffold[0].rid
-            if tigId not in complete:
-                scaffold, paths, leftover = scaffolder.scaffold(paths, tigId, lengthData, param, scaffold)
-                leftovers = leftovers + leftover
-                complete[tigId] = True
-                flag = False
+    scaffolds_ = copy.deepcopy(scaffolds)
+    with open('scaffoldskeep.pickle', 'wb') as handle:
+        pickle.dump(keep, handle)
 
-            tigId = scaffold[-1].rid
-            if tigId not in complete:
-                scaffold, paths, leftover = scaffolder.scaffold(paths, tigId, lengthData, param, scaffold)
-                leftovers = leftovers + leftover
-                complete[tigId] = True
-                flag = False
+    keep_ = copy.deepcopy(keep)
 
-        if scaffold is not None:
-            scaffolds.append(scaffold)
+    scaffolds = copy.deepcopy(scaffolds_)
 
-            
-            
-            
-            
-            
-            
-
+    keep = copy.deepcopy(keep_)
+    scaffolds=keep
+    '''
     
-    tg = [len(get_tig_ids(x, source='r')) for x in scaffolds]
-    ln = np.array([path_length(x) for x in scaffolds])
+    #note: it seems tig00031379_pilon_pilon is misassembled between chr3 and 10 but is fixed? :)
     
-    def fn (path, end=True):
-        x = path [-1] if end else path[0]
-        if(x.after_id() == x.rid):
-            pos = x.after_pos()
-            if x.after_strand() == -1:
-                pos = lengthData[str(x.rid)] - pos
-        else:
-            return -0.1
-        print(str(pos) + " / " + str(lengthData[str(x.rid)]))
-        return pos/lengthData[str(x.rid)]
-        
-    end = [fn(x, True) for x in scaffolds]
-
+    scaffolds.sort(key=lambda scaffold: path_helper.path_length(scaffold))
+    lengths = [path_helper.path_length(scaffold) for scaffold in scaffolds]
+    
+    keep = []
+    
+    for i in range(len(scaffolds)):
+        scaffold = scaffolds[i]
+        shouldKeep=True
+        print(i)
+        if(i<340): continue
+        for j in reversed(range(i, len(scaffolds))):
+            scaffold2 = scaffolds[j]
+            if lengths[j] >= lengths[i] and i != j:
             
-    
-    for scaffold in leftovers:
-        if scaffold[0].rid != scaffold[-1].rid:
-            print(scaffold[0].rid + " - " + scaffold[-1].rid)
+                    o1, o2 = path_helper.path_overlap(scaffold, scaffold2, lengthData, source='r')
+                    o = max(o1, o2)
+                    if(o > 0):
+                        print("--------------")
+                        print(scaffold.__repr__())
+                        print(scaffold2.__repr__())
+                        print(path_helper.path_overlap(scaffold, scaffold2, lengthData, printInfo=True, source='r'))
+                        print(str(i) + "," + str(j))
+                        
+                        if o > 0.99:
+                            print('deleting:' + scaffold.__repr__())
+                            shouldKeep=False
+                            break
+                        elif o > 0:
+                            print('trimming:' + scaffold.__repr__())
+                            scaffolder.remove_overlap(scaffold2, scaffold, lengthData, source='r')
+                            print('try again:' + scaffold.__repr__())
+                            print(path_helper.path_overlap(scaffold, scaffold2, lengthData, printInfo=True, source='r'))
+                            if len(scaffold) < 2:
+                                shouldKeep=False
 
-    
-    pacbioTigs = set()
-    for path in paths:
-        for fork in path:
-            pacbioTigs.add(fork.rid)
-    
-    output.output_contigs(lst, seqData, "novachr3.fasta")
-    output.output_contigs(pacbioTigs, seqData, "canuchr3.fasta")
-    output.path_to_sequence(paths[0], seqData, "hybridchr3.fasta")
+        if shouldKeep:
+            keep.append(scaffold)
+            
+            
+    '''
+    with open('scaffoldskeep.pickle', 'wb') as handle:
+        pickle.dump(keep, handle)
+      
+    with open('scaffoldskeep.pickle', 'rb') as handle:
+        keep = pickle.load(handle)
 
-  
+    '''
+
+    keep.sort(key=lambda scaffold: -path_helper.path_length(scaffold))
+    
+    file="/media/scott/Rotom/assembly_data/NA24385/hybrid.fa"
+    sourceFile="/media/scott/Rotom/assembly_data/NA24385/hybrid_source.fa"
+
+    with open(file, "w+") as fasta:
+        with open(sourceFile, "w+") as fastaSource:
+    
+            for i in range(len(keep)):
+                print(i)
+                sequence, source = output.path_to_sequence2(keep[i], seqData)
+                fasta.write(">hybrid" + "_" + str(i) +"\n")
+                fasta.write(re.sub("(.{64})", "\\1\n", "".join(sequence), 0, re.DOTALL) + "\n")
+                fastaSource.write(">hybrid" + "_" + str(i) +"\n")
+                fastaSource.write(re.sub("(.{64})", "\\1\n", "".join(source), 0, re.DOTALL) + "\n")
+                
+            fastaSource.close()
+        fasta.close()
+    
+
 if __name__== "__main__":
   main()
   print("done")
-
-def pickler():
-    with open('paths2.pickle', 'rb') as handle:
-        paths = pickle.load(handle)
-        
-    
-    
-    with open('pathsx.pickle', 'wb') as handle:
-        pickle.dump(paths_, handle)
-    
-    '''
-    novaTigs = dict()
-    canuTigs = dict()       
-    for tigId in refData.keys():
-        print(tigId)
-        mblocks = stitcher.stitch_r(aligndf, tigId, param, mblockOnly=True )
-        if mblocks is None or len(mblocks) < 0: continue
-        canuTigs[tigId] = mblocks
-    for tigId in queryData.keys():
-        print(tigId)
-        tigId = int(tigId)
-        mblocks = stitcher.stitch(aligndf, tigId, param, mblockOnly=True )
-        if mblocks is None or len(mblocks) < 0: continue
-        novaTigs[tigId] = mblocks
-        
-    match = dict()
-    
-    for tigId in canuTigs:
-        for mblock in canuTigs[tigId]:
-            match.setdefault(tigId, []).append(mblock.qid)
-    for tigId in novaTigs:
-        for mblock in novaTigs[tigId]:
-            match.setdefault(tigId, []).append(mblock.rid)
-
-    x=[]
-    y=[]
-    for tigId in novaTigs:
-        if tigId in match:
-            x.append(len(match[tigId]))
-            y.append(lengthData[str(tigId)])
-
-    '''
-        
