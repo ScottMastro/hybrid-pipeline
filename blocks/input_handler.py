@@ -1,18 +1,19 @@
 import sys
-sys.path.append("./analysis")
-sys.path.append('./weld')
-sys.path.append('./stitch')
+sys.path.append('./align')
+import contig_welder as welder
+sys.path.append('./blocks')
+import contig_stitcher as stitcher
 
-from parameters import Parameters
-import file_handler as io
-import welder
-import stitcher
-
+import file_handler as reader
 import contig_scaffolder as scaffolder
 import contig_output as output
 import path_helper
 
+from parameters import Parameters
+from Bio import SeqIO
 import sys
+import gzip
+import pickle
 import copy 
 import re
 #----Parameters-------------------------
@@ -23,110 +24,75 @@ if len(sys.argv) > 1 :
     novafa = sys.argv[3]      #supernova fasta
     canufa = sys.argv[4]      #canu fasta
 
+else:
+    
+    prefix1="/home/scott/Dropbox/hybrid-pipeline/blocks"
+    #prefix2="/media/scott/HDD/sickkids"
+    prefix2="/media/scott/Rotom/assembly_data"
+
+    summary_file = prefix1 + "/summary2.txt"
+    novafa = prefix2 + "/CF062/OSK7121_03C_supernova.pseudohap2.1.fasta"
+    canufa = prefix2 + "/CF062/CF062B2D.contigs.fasta.PILON2.fasta"
+
+    
+    summary_file = prefix1 + "/summary_giab.txt"
+    novafa = prefix2 + "/NA24385/NA24385_supernova.pseudohap2.1.fasta"
+    canufa = prefix2 + "/NA24385/HG002_NA24385_son_57X.contigs.fasta.PILON2"
+
+
+
 #----Parameters-------------------------
 
-def validate_ids(rids, qids):
-    intersect = set(rids).intersection(qids) 
-    if len(intersect) > 0:
-        print("ERROR: IDs for input fasta files overlap.")
-        print("\"" + str(intersect.pop()) + "\" is found in both fasta files.")
-        print("Please ensure each ID is unique.")
-        return False
-    return True
+def read_fa(fa):
+    if(fa[-2:] == "gz"):
+        with gzip.open(fa, "rb") as handle:
+            records = list(SeqIO.parse(handle, "fasta"))
+    else:
+        records = list(SeqIO.parse(fa, "fasta"))
         
+    return dict(zip([r.id for r in records], [str(r.seq) for r in records]))
 
 def main():
 
-    #----Load data-------------------------
-
-    param = Parameters()
-
     print("Reading Canu fasta")
-    refData = io.read_fasta(param.referenceFasta)
+    refData = read_fa(canufa)
     print("Reading Supernova fasta")
-    queryData = io.read_fasta(param.queryFasta)
+    queryData = read_fa(novafa)    
     
-    rids = list(refData.keys())
-    qids = list(queryData.keys())
-
-    #if not validate_ids(rids, qids): return
-    
-    seqData = dict()
+    seqData = {}
     seqData.update(refData)
     seqData.update(queryData)
     lengthData = {x : len(seqData[x]) for x in seqData.keys()}
     
-    aligndf = io.parse_alignments(param.summaryFile)
-    
-    #--------------------------------------
+    param = Parameters()
+    aligndf = reader.parse_alignments(summary_file)   
     
     paths = []
-    emptyIds = []
-    print("Iterating over query contigs...")
-
-    #outputPath="/home/scott/Dropbox/hybrid-pipeline/blocks/plots/"  \
-    #outputPath="/media/scott/HDD/sickkids/NA24385/plots/" \
-    outputPath="/media/scott/Rotom/assembly_data/plots/giab/" 
-    outputPath=None
-
-    '''
-    for tigId in rids:
-        print("Contig: " + tigId)
-        contig = stitcher.stitch(tigId, aligndf, lengthData, param, \
-                                 plotDir=outputPath, q=False)
-    '''
-
-
-    for tigId in qids:
+    smallPaths = []
+    
+    for tigId in queryData.keys():
+        print(tigId)
+        tigId = int(tigId)
+        #if(tigId < 100612): 
+        #   continue
+        contig = stitcher.stitch(aligndf, tigId, param)
+        if contig is None: continue
+        #output.plot_identity(contig, outputPath="/home/scott/Dropbox/hybrid-pipeline/blocks/idplots/")
+    
+        path = welder.weld(contig, seqData, lengthData, param)
         
-       # if(int(tigId) < 295): 
-       #    continue
-
-
-        print("Contig: " + tigId)
-        contig = stitcher.stitch(tigId, aligndf, lengthData, param, \
-                                 plotDir=outputPath, q=True)
-                
-        if contig is None: emptyIds.append(tigId)
-        else:
-            path = welder.weld(contig, seqData, lengthData, param)
-            
-
-            if len(path) < 1: emptyIds.append(tigId)
-            else: 
+        if len(path)>1:
+            if lengthData[str(tigId)] > 10000:
                 paths.append(path)
-        
-     
-    '''
-    counter=1
-    counterStart=counter
-    size=20000
-    i=22720*1000 + counter*size
-    while True:
-        print(">sn"+str(counter))
-        print(seqData["246"][i:i+size])
-        counter = counter +1
-            
-        i = i + size
-        if i > 23080*1000 or counter > counterStart+25:
-            break
-        
-        
-    counter=1
-    counterStart=counter
-    size=20000
-    i=5177*1000 + counter*size
-    while True:
-        print(">cu"+str(counter))
-        print(seqData["tig00001574_pilon_pilon"][i:i+size])
-        counter = counter +1
-            
-        i = i + size
-        if i > 5552*1000 or counter > counterStart+25:
-            break
-    '''
-        
+            else:
+                smallPaths.append(path)
 
+
+
+
+        #cleanPath = clean_path(path, lengthData, param)
+
+        
     
     '''
     with open('giabpath10k.pickle', 'wb') as handle:

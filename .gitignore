@@ -2,6 +2,7 @@
 *.svg
 *.txt
 *.fasta
+*.zip
 
 .Rhistory
 # Byte-compiled / optimized / DLL files

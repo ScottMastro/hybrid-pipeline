@@ -1,11 +1,17 @@
 class Interval:
         
     def __init__(self, qid="?", rid="?"):
-        self.rid=rid
-        self.qid=qid
+        self.rid=str(rid)
+        self.qid=str(qid)
         self.components = []
         self.sorted=True
-        self.fill=[0,0,0]
+
+
+    '''Get position x percent identity for a range of positions'''
+    def coverage(self): 
+        return sum([component.coverage() for component in self.components])
+    def coverage_between(self, pos1, pos2, q=True): 
+        return sum([component.coverage_between(pos1, pos2, q) for component in self.components])
 
     def add(self, interval):
         self.components.append(interval)  
@@ -13,11 +19,6 @@ class Interval:
         
     def ncomponents(self): return len(self.components)
         
-    def coverage(self): 
-        return sum([component.coverage() for component in self.components])
-    
-    def coverage_between(self, pos1, pos2, q=True): 
-        return sum([component.coverage_between(pos1, pos2, q) for component in self.components])
     
     def span(self, q=True): 
         if len(self) < 1: return 0
@@ -26,7 +27,7 @@ class Interval:
         if len(self) < 1: return 0
         return sum([component.span(q) for component in self.components])
     
-    def percent_identity(self): 
+    def percent_identity(self):
         return sum([x.percent_identity() for x in self.components])/len(self.components)
     def percent_identities(self): 
         return [x.percent_identity() for x in self.components]
@@ -41,28 +42,34 @@ class Interval:
         return False
 
     def trim_left(self, position, q=True):
+        trimmed = []
         i=0
         while i < len(self):
             if self[i].should_trim(position, 'l', q):
-                self.components.pop(i)
+                x = self.components.pop(i)
+                trimmed.append(x)
             else: 
                 self[i].trim_left(position, q)
                 if len(self[i]) < 1:
                     self.components.pop(i)
                 else:
                     i = i+1
+        return trimmed
                     
     def trim_right(self, position, q=True):
+        trimmed = []
         i=0
         while i < len(self):
             if self[i].should_trim(position, 'r', q):
-                self.components.pop(i)
+                x = self.components.pop(i)
+                trimmed.append(x)
             else: 
                 self[i].trim_right(position, q)
                 if len(self[i]) < 1:
                     self.components.pop(i)
                 else:
                     i = i+1
+        return trimmed
 
     def get_dir(self, q=True, string=False):
         if(self.start(q) < self.end(q)):

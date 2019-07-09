@@ -1,6 +1,6 @@
 import re
 import log
-from path_helper import can_join_forks
+from path_helper import valid_fork_pair
 from path_helper import path_overlap
 from path_helper import path_length
 
@@ -71,7 +71,7 @@ def scaffold_pair(path, nextPath, side, nextSide, lengthData, param):
                 report.set_fail(log.INVALID_ID)
                 continue
 
-            if can_join_forks(fork, nextFork):
+            if valid_fork_pair(fork, nextFork):
                 if flip:
                     nextPath.flip_strands(lengthData)
                 path.add_path(nextPath)
@@ -91,7 +91,7 @@ def scaffold_pair(path, nextPath, side, nextSide, lengthData, param):
                 report.set_fail(log.INVALID_ID)
                 continue
 
-            if can_join_forks(nextFork, fork):
+            if valid_fork_pair(nextFork, fork):
                 if flip:
                     nextPath.flip_strands(lengthData)
                 nextPath.add_path(path)
