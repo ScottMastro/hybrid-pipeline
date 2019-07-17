@@ -48,7 +48,7 @@ def ssw_align(qSeq, rSeq, qRange, rRange, qReverse=False, rReverse=False, printA
 
     if printAlignment:
         print(alignment.alignment_report())
-        input()
+        #input()
     return alignment
 
 def cut_alignment(qSeq, rSeq, alignment, side, buffer=50, minPercent=92, smallBuffer=5):
@@ -180,7 +180,7 @@ def align(qSeq, rSeq, qpos, rpos, side, param, alignBuffer=200, hint=None):
             log.out("Trying " + sideStr + " again with extension = " + str(extension), 3, param, wait=True)
             
         log.out("Could not align (" + sideStr + " failure).", 1, param)
-        input()
+        #input()
     return None
     
 def align_left(qid, rid, qSeq, rSeq, qpos, rpos, param, alignBuffer=200, hint=None):

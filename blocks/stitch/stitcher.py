@@ -17,7 +17,7 @@ def stitch(tigId, aligndf, lengthData, param, plotDir=None, q=True):
     length = lengthData[tigId]
     
     for idx, row in rows.iterrows():
-        #if row[2] == 'tig00032236_pilon_pilon': break
+        #if row[2] == 'tig00007745_pilon_pilon': break
                 
         #chunks
         chunks = blocker.construct_chunks(row, param)

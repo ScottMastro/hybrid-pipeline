@@ -368,7 +368,7 @@ def path_to_sequence2(path, seqData):
             print(endFork)
 
             print("strand issue")
-            input()
+            #input()
             
         seq = seqData[str(tigId)]
         

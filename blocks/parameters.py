@@ -1,18 +1,15 @@
 class Parameters:
     def __init__(self):
         
-        prefix1="/home/scott/Dropbox/hybrid-pipeline/blocks"
-        #prefix2="/media/scott/HDD/sickkids"
-        prefix2="/media/scott/Rotom/assembly_data"
+        prefix1="/Users/allen bao/Documents/hybrid-pipeline/blocks"
+        prefix2="/Users/allen bao/Documents/assembly_data"
+        prefix3="/Users/allen bao/Documents/assembly_data/summary_files"
         
-        '''
-        self.summaryFile = prefix1 + "/summary2.txt"
-        self.queryFasta = prefix2 + "/CF062/OSK7121_03C_supernova.pseudohap2.1.fasta"
+        
+        self.summaryFile = prefix3 + "/CF062.summary.txt"
+        self.queryFasta = prefix2 + "/CF062/OSK7121_03C_supernova.pseudohap.fasta"
         self.referenceFasta = prefix2 + "/CF062/CF062B2D.contigs.fasta.PILON2.fasta"
-        '''
-        self.summaryFile = prefix1 + "/summary_giab.txt"
-        self.queryFasta = prefix2 + "/NA24385/NA24385_supernova.pseudohap2.1.fasta"
-        self.referenceFasta = prefix2 + "/NA24385/HG002_NA24385_son_57X.contigs.fasta.PILON2"
+        self.arks_output = prefix1 + "/CF062B2D.contigs.fasta.PILON2.fasta.tigpair_checkpoint.tsv"
         
         self.CHUNK_SIZE         =   1000    #size of each chunk in base pairs
         self.CHUNK_PER_BLOCK    =   3       #minimum number of chunks per block
@@ -34,6 +31,9 @@ class Parameters:
         self.STATISTICS         =   True    #generate and output statistics
 
         self.reports = []
+        
+        self.arks               =   True    #run arks/linked reads step of pipeline for improved scaffolding
+        self.LR_THRESHOLD       =   2       #minimum number of acceptable barcodes in common between canu contigs for scaffolding to proceed
         
     def add_report(self, report):
         if self.STATISTICS:

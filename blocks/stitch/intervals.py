@@ -223,6 +223,10 @@ class Chunk(Interval):
         if q: return abs(self.qstart - self.qend)
         return abs(self.rstart - self.rend)
     
+    def mid(self, q=True):
+        if q: return int((self.qstart + self.qend)/2)
+        return int((self.rstart + self.rend)/2)
+    
     def coverage(self): 
         return (self.alen*self.pcid)/100.0
     def coverage_between(self, pos1, pos2, q=True):

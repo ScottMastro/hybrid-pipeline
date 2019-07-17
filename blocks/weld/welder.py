@@ -73,7 +73,7 @@ def join_blockpaths(paths, lengthData, param):
         ok = path_helper.check_path(path)
         if not ok:
             print("Not ok")
-            input()  
+            #input()  
     
     # fix strand orientation
     for i in range(len(paths)-1):
@@ -106,7 +106,7 @@ def join_megablockpaths(paths, lengthData, param):
         ok = path_helper.check_path(path)
         if not ok:
             print("Not ok")
-            input()  
+            #input()  
     
     # fix strand orientation
     for i in range(len(paths)-1):
@@ -142,19 +142,20 @@ def weld(contig, seqData, lengthData, param):
     
     plot = False
     plotPaths = []
-    
+        
     for megablock in reversed(contig.mblocks):
         megaPath = weld_megablock(megablock, seqData, param)
         
         if plot:
             plotPaths.append(copy.deepcopy(megaPath))
 
+
         contigPath = join_blockpaths(megaPath, lengthData, param)
 
         if contigPath is not None and len(contigPath) > 0:
             contigPaths.append(contigPath)
         
-                
+     
     path = join_megablockpaths(contigPaths, lengthData, param)
 
         

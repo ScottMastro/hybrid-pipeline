@@ -97,22 +97,30 @@ def add_Nforks(path, lengthData):
     or end of the path if the start/end does not correspond to the most extreme
     query position within the path. Returns path with Nforks inserted.
     '''
+    #print(path)
     startNFlag, endNFlag = False, False
     if len(path) > 0:
         f1 = path[0]
         f2 = path[-1]
         
-        firstqPos = f1.qpos if f1.qstrand == 1 else lengthData[f1.qid] - f1.qpos
-        lastqPos = f2.qpos if f2.qstrand == 1 else lengthData[f2.qid] - f2.qpos
+        if not f1.is_Nfork():
+            firstqPos = f1.qpos if f1.qstrand == 1 else lengthData[f1.qid] - f1.qpos
+        else:
+            firstqPos = None
+        if f2.is_Nfork():
+            lastqPos = f2.qpos if f2.qstrand == 1 else lengthData[f2.qid] - f2.qpos
+        else:
+            lastqPos = None
             
         for fork in path:
             if fork.is_Nfork(): continue
             qpos = fork.qpos if fork.qstrand == 1 else lengthData[fork.qid] - fork.qpos
-            if qpos > lastqPos:
+            
+            if lastqPos is not None and qpos > lastqPos:
                 print("ending with NNN")
                 endNFlag = True
                 break
-            if qpos < firstqPos:
+            if firstqPos is not None and qpos < firstqPos:
                 print("starting with NNN")
                 startNFlag = True
                 break
@@ -137,10 +145,10 @@ def add_Nforks(path, lengthData):
             print("adding Nfork between:")
             print(path[i])
             print(path[i+1])
-            input()
+            #input()
             
     newPath.add_fork(path[-1])
-    return path
+    return newPath
 
 def check_path(path):
     '''
@@ -151,7 +159,7 @@ def check_path(path):
     if len(path) < 1: return True
     
     startFork = path[0]
-    
+
     for endFork in path[1:]:
         if startFork.is_Nfork() or endFork.is_Nfork():
             startFork = endFork
@@ -161,21 +169,21 @@ def check_path(path):
             print("Contig IDs do not match:")
             print(startFork)
             print(endFork)
-            input()
+            #input()
             return False
         
         if not startFork.after_strand() == endFork.before_strand():
             print("Strands do not match:")
             print(startFork)
             print(endFork)
-            input()
+            #input()
             return False
 
         if startFork.after_pos() > endFork.before_pos():
             print("Positional issue (going backwards):")
             print(startFork)
             print(endFork)
-            input()
+            #input()
             return False
         
         if startFork.before_id() == endFork.after_id() and \
@@ -188,7 +196,7 @@ def check_path(path):
             if startFork.is_switch_reference():
                 print("Might be intentional...")
             else:
-                input()
+                #input()
                 return False
 
         startFork = endFork
@@ -244,7 +252,7 @@ def join_paths(paths, lengthData, param):
                         paths[i].add_fork_front(get_Nfork())
             else:
                     print('skipped')
-                    input()
+                    #input()
      
                     
         elif p1[-1].after_id() == p2[0].before_id() and \
@@ -314,7 +322,7 @@ def join_paths(paths, lengthData, param):
            #     print(path[-1])
            #     path.pop()
             
-            input()
+            #input()
     
         if path[-1].after_strand() != blockPath[0].before_strand():
                         
@@ -351,13 +359,13 @@ def join_paths(paths, lengthData, param):
                 print("removing")
                 continue
                
-            input()
+            #input()
 
         if path[-1].after_pos() > blockPath[0].before_pos():
             print('positional issue')
             print(path[-1])
             print(blockPath[0])
-            input()
+            #input()
  
         lastIdx=len(path)
         path.add_path(blockPath)
@@ -388,7 +396,7 @@ def join_path_list(paths, lengthData, param):
                 print(path[-1])
                 path.pop()
             
-            input()
+            #input()
     
         if path[-1].after_strand() != blockPath[0].before_strand():
                         
@@ -405,20 +413,20 @@ def join_path_list(paths, lengthData, param):
           #      print("removing")
           #      continue
                
-            input()
+            #input()
 
             
            # if path[-1].is_switch_reference() and len(blockPath) <= 2:
            #     print("removing")
                # continue
             
-            input()
+            #input()
             
         if path[-1].after_pos() > blockPath[0].before_pos():
             print('positional issue')
             print(path[-1])
             print(blockPath[0])
-            input()
+            #input()
 
         path.add_path(blockPath)
         
@@ -555,3 +563,93 @@ def path_overlap(path1, path2, lengthData, source=None, printInfo=False):
             total2 = total2 + abs(ends2[tigId] - starts2[tigId])
         
     return (overlap/max(total1, 1), overlap/max(total2, 1))
+
+
+def path_overlap2(path1, path2, lengthData, overlapOnly, source=None, printInfo=False):
+                                           #'r' for ref, 'q' for query, None = both
+    def normalized_pos(fork, tigId):
+        pos = fork.get_pos_by_id(tigId)
+        if pos is None: return None
+        if fork.get_strand_by_id(tigId) == -1:
+            pos = lengthData[str(tigId)] - pos
+        return pos
+    
+    def fill_dict(path):
+        starts = dict()
+        ends = dict()
+        for fork in path:
+            if source is None :
+                tigIds = [fork.before_id(), fork.after_id()]
+            else:
+                tigIds = ([fork.rid] if source == 'r' else []) + \
+                 ([fork.qid] if source == 'q' else [])
+                 
+            for tigId in tigIds:
+                pos = normalized_pos(fork, tigId)
+                tigId = str(tigId)
+                if tigId not in starts:
+                    starts[tigId] = pos
+                    ends[tigId] = pos
+                else:
+                    if pos < starts[tigId]: starts[tigId] = pos
+                    if pos > ends[tigId]: ends[tigId] = pos
+        return (starts,ends)
+               
+    starts1, ends1 = fill_dict(path1)
+    starts2, ends2 = fill_dict(path2)
+
+    overlap = 0.0
+    whichEnd1 = []
+    whichEnd2 = [] 
+    #total1 = 0.0
+    #total2 = 0.0
+    
+    tigs = []
+    posA = []
+    posB = []
+    sizeA = []
+    sizeB = []
+    s1 = list(starts1.keys())
+    s2 = list(starts2.keys())
+    for tigId in set(starts1.keys()).intersection(set(starts2.keys())):
+        #print(tigId)
+        if s1[0] == tigId:
+            whichEnd1.append('Head')
+        elif s1[-1] == tigId:
+            whichEnd1.append('Tail')
+        else:
+            whichEnd1.append('Middle')
+        if s2[0] == tigId:
+            whichEnd2.append('Head')
+        elif s2[-1] == tigId:
+            whichEnd2.append('Tail')
+        else:
+            whichEnd2.append('Middle')
+        tigs.append(tigId)
+        posA.append(str(starts1[tigId]) + '-' + str(ends1[tigId]))
+        posB.append(str(starts2[tigId]) + '-' + str(ends2[tigId]))
+        sizeA.append(ends1[tigId] - starts1[tigId])
+        sizeB.append(ends2[tigId] - starts2[tigId])
+            
+        
+        if tigId in starts1 and tigId in starts2:
+            start = max(starts1[tigId], starts2[tigId])
+            end = min(ends1[tigId], ends2[tigId])
+            overlap = overlap + max(0, end - start)
+            
+            if printInfo:
+                #start = max(starts1[tigId], starts2[tigId])
+                #end = min(ends1[tigId], ends2[tigId])
+    
+                print("path1: " + path1 + ", path2: " + path2 + ", " + tigId + ": " + str(start) + " - " + str(end) + \
+                      "(" + str(overlap) + ")")
+            
+        #if tigId in starts1:
+            #total1 = total1 + abs(ends1[tigId] - starts1[tigId])
+        #if tigId in starts2:
+            #total2 = total2 + abs(ends2[tigId] - starts2[tigId])
+        
+        
+    if overlapOnly:
+        return overlap
+    return whichEnd1, whichEnd2, tigs, posA, posB, sizeA, sizeB

@@ -15,6 +15,14 @@ import path_helper
 import sys
 import copy 
 import re
+
+import numpy as np
+from Bio import SeqIO
+import gzip
+import pickle
+import pandas as pd
+from analysis import region_extract
+import os
 #----Parameters-------------------------
 
 if len(sys.argv) > 1 :
@@ -33,7 +41,6 @@ def validate_ids(rids, qids):
         print("Please ensure each ID is unique.")
         return False
     return True
-        
 
 def main():
 
@@ -58,24 +65,17 @@ def main():
     
     aligndf = io.parse_alignments(param.summaryFile)
     
+    lrdict = scaffolder.linkedReadsDict(rids, param.arks_output)
+    #lrdf = scaffolder.linkedReadsDF(rids, lengthData, param.arks_output)
+
     #--------------------------------------
     
     paths = []
     emptyIds = []
     print("Iterating over query contigs...")
 
-    #outputPath="/home/scott/Dropbox/hybrid-pipeline/blocks/plots/"  \
-    #outputPath="/media/scott/HDD/sickkids/NA24385/plots/" \
-    outputPath="/media/scott/Rotom/assembly_data/plots/giab/" 
+    outputPath="/Users/allen bao/Documents/assembly_data/plots/"
     outputPath=None
-
-    '''
-    for tigId in rids:
-        print("Contig: " + tigId)
-        contig = stitcher.stitch(tigId, aligndf, lengthData, param, \
-                                 plotDir=outputPath, q=False)
-    '''
-
 
     for tigId in qids:
         
@@ -86,7 +86,6 @@ def main():
         print("Contig: " + tigId)
         contig = stitcher.stitch(tigId, aligndf, lengthData, param, \
                                  plotDir=outputPath, q=True)
-                
         if contig is None: emptyIds.append(tigId)
         else:
             path = welder.weld(contig, seqData, lengthData, param)
@@ -95,7 +94,12 @@ def main():
             if len(path) < 1: emptyIds.append(tigId)
             else: 
                 paths.append(path)
-        
+    '''
+    with open('CF062_paths.pickle', 'wb') as handle:
+        pickle.dump(paths, handle)
+    with open('CF062_paths.pickle', 'rb') as handle:
+        paths = pickle.load(handle)
+    '''
      
     '''
     counter=1
@@ -150,21 +154,32 @@ def main():
 
     '''
     
-    
-    
-    with open('giabpath10k.pickle', 'rb') as handle:
+    with open('CF062_paths.pickle', 'rb') as handle:
         p1 = pickle.load(handle)
-    with open('giabpathsmall.pickle', 'rb') as handle:
-        p2 = pickle.load(handle)
+    #with open('CF062_paths.pickle', 'rb') as handle:
+        #p2 = pickle.load(handle)
     
     cutoff=0.5e6
     paths=[]
     shortPaths=[]
-    allPaths=[]
-    for p in p1 + p2:
+    #allPaths=[]
+    
+    unique = []
+    dup = []
+    
+    i=-1
+    for p in p1:  # + p2:
+        i += 1
         if len(p) < 1: continue
     
-    
+        #remove duplicate paths
+        p_tup = p[0].rid, p[0].rpos, p[0].rstrand, p[-1].qid, p[-1].qpos, p[-1].qstrand
+        if p_tup not in unique:
+            unique.append(p_tup)
+        else:          
+            a = p1.pop(i)
+            dup.append(a)
+
         #clean up unnecessary NNNs
         #--------------------------
         if p[0].is_Nfork():
@@ -205,6 +220,8 @@ def main():
     refTigIds.sort(key=lambda x: -lengthData[x])
     queryTigIds.sort(key=lambda x: -lengthData[x])
 
+    import contig_scaffolder as scaffolder
+
     repeat = 0
     
     while repeat < 2:
@@ -216,7 +233,7 @@ def main():
             if tigId in complete:
                 continue
             
-            scaffold, paths, leftover = scaffolder.scaffold(paths, tigId, lengthData, param)
+            scaffold, paths, leftover = scaffolder.scaffold(paths, tigId, lengthData, param, lrdict, param.arks, param.LR_THRESHOLD)
             paths = paths + leftover
             complete[tigId] = True
             
@@ -229,7 +246,7 @@ def main():
                 if not scaffold[0].is_Nfork():
                     tigId = scaffold[0].rid
                     if tigId not in complete:
-                        scaffold, paths, leftover = scaffolder.scaffold(paths, tigId, lengthData, param, scaffold)
+                        scaffold, paths, leftover = scaffolder.scaffold(paths, tigId, lengthData, param, lrdict, param.arks, param.LR_THRESHOLD, scaffold)
                         paths = paths + leftover
                         complete[tigId] = True
                         flag = False
@@ -237,7 +254,7 @@ def main():
                 if not scaffold[-1].is_Nfork():
                     tigId = scaffold[-1].rid
                     if tigId not in complete:
-                        scaffold, paths, leftover = scaffolder.scaffold(paths, tigId, lengthData, param, scaffold)
+                        scaffold, paths, leftover = scaffolder.scaffold(paths, tigId, lengthData, param, lrdict, param.arks,param.LR_THRESHOLD, scaffold)
                         paths = paths + leftover
                         complete[tigId] = True
                         flag = False
@@ -321,14 +338,13 @@ def main():
 
     keep.sort(key=lambda scaffold: -path_helper.path_length(scaffold))
     
-    file="/media/scott/Rotom/assembly_data/NA24385/hybrid.fa"
-    sourceFile="/media/scott/Rotom/assembly_data/NA24385/hybrid_source.fa"
+    file="/Users/allen bao/Documents/assembly_data/hybrid.fa"
+    sourceFile="/Users/allen bao/Documents/assembly_data/hybrid_source.fa"
 
     with open(file, "w+") as fasta:
         with open(sourceFile, "w+") as fastaSource:
     
             for i in range(len(keep)):
-                print(i)
                 sequence, source = output.path_to_sequence2(keep[i], seqData)
                 fasta.write(">hybrid" + "_" + str(i) +"\n")
                 fasta.write(re.sub("(.{64})", "\\1\n", "".join(sequence), 0, re.DOTALL) + "\n")
@@ -342,3 +358,4 @@ def main():
 if __name__== "__main__":
   main()
   print("done")
+  exit()
