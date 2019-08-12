@@ -148,16 +148,14 @@ def weld(contig, seqData, lengthData, param):
         
         if plot:
             plotPaths.append(copy.deepcopy(megaPath))
-
-
+        
         contigPath = join_blockpaths(megaPath, lengthData, param)
-
+        
         if contigPath is not None and len(contigPath) > 0:
             contigPaths.append(contigPath)
         
      
     path = join_megablockpaths(contigPaths, lengthData, param)
-
         
     ok = path_helper.check_path(path)
     

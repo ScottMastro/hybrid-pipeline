@@ -107,7 +107,7 @@ def add_Nforks(path, lengthData):
             firstqPos = f1.qpos if f1.qstrand == 1 else lengthData[f1.qid] - f1.qpos
         else:
             firstqPos = None
-        if f2.is_Nfork():
+        if not f2.is_Nfork():
             lastqPos = f2.qpos if f2.qstrand == 1 else lengthData[f2.qid] - f2.qpos
         else:
             lastqPos = None
@@ -467,6 +467,29 @@ def path_length(path):
                 pathSum = pathSum + abs(prevFork.after_pos() - fork.before_pos())
             prevFork = fork
         
+    return max(1, pathSum)
+
+def path_length_id(path, tigId):
+
+    if len(path) >= 2: 
+        first = None
+        last = None
+        for i in range(0, len(path)):
+            if str(path[i].before_id()) == str(tigId):
+                if first is None:
+                    first = path[i].before_pos()
+            if str(path[i].after_id()) == str(tigId):
+                last = path[i].after_pos()
+        pathSum = abs(last - first)
+        '''
+        prevFork = path[0]
+        
+        for fork in path[1:]:
+            if not fork.is_Nfork() and not prevFork.is_Nfork():
+                if prevFork.after_id() == tigId and fork.before_id() == tigId:
+                    pathSum = pathSum + abs(prevFork.after_pos() - fork.before_pos())
+            prevFork = fork
+        '''
     return max(1, pathSum)
 
 def plot_length_all(paths, lengthData, outputPath):

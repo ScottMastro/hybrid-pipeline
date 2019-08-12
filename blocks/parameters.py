@@ -10,6 +10,7 @@ class Parameters:
         self.queryFasta = prefix2 + "/CF062/OSK7121_03C_supernova.pseudohap.fasta"
         self.referenceFasta = prefix2 + "/CF062/CF062B2D.contigs.fasta.PILON2.fasta"
         self.arks_output = prefix1 + "/CF062B2D.contigs.fasta.PILON2.fasta.tigpair_checkpoint.tsv"
+        self.unitigsBed = prefix2 + "/CF062/CF062B2D.unitigs.bed"
         
         self.CHUNK_SIZE         =   1000    #size of each chunk in base pairs
         self.CHUNK_PER_BLOCK    =   3       #minimum number of chunks per block
@@ -33,7 +34,7 @@ class Parameters:
         self.reports = []
         
         self.arks               =   True    #run arks/linked reads step of pipeline for improved scaffolding
-        self.LR_THRESHOLD       =   2       #minimum number of acceptable barcodes in common between canu contigs for scaffolding to proceed
+        self.LR_THRESHOLD       =   2      #minimum number of acceptable barcodes in common between canu contigs for scaffolding to proceed
         
     def add_report(self, report):
         if self.STATISTICS:

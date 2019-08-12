@@ -2,8 +2,29 @@ import re
 import log
 from path_helper import valid_fork_pair
 from path_helper import path_overlap
-from path_helper import path_length
+#from path_helper import path_length
+from path_helper import path_length_id
 import pandas as pd
+
+def unitigsDict(unitigs):
+    utgdict_dict = dict()
+    file = open(unitigs, 'r')
+    for line in file:
+        sline = line.split('\t')
+        ctg_raw = sline[0]
+        ctg = "tig"+ctg_raw[3:]+"_pilon_pilon"
+        start = sline[1]
+        end = sline[2]
+        rng = (start, end)
+        utg = sline[3]
+        
+        if ctg not in utgdict_dict.keys():
+            utgdict = dict()
+            utgdict[utg] = rng
+            utgdict_dict[ctg] = utgdict
+        else:
+            utgdict_dict[ctg][utg] = rng
+    return utgdict_dict
 
 def linkedReadsDict(canutigs, arks_output):
     lrdict_dict = dict()
@@ -129,10 +150,19 @@ def output(path):
         
     
 def scaffold_pair(path, nextPath, side, nextSide, lengthData, param):
-
+    print('side: '+str(side))
+    print('nextSide: '+str(nextSide))
+    printerino = False
+    if str(path[0].qid) == '172': 
+        printerino = True
+    if str(nextPath[0].qid) == '172':
+        printerino = True
+    
     reports =  []
         
     for shift in [0,1,2,3]:
+        if printerino:
+            print(shift)
         report = log.Report(log.SCAFFOLD_ATTEMPT)
         reports.append(report)
         idx = 0 if side == 1 else -1
@@ -146,16 +176,30 @@ def scaffold_pair(path, nextPath, side, nextSide, lengthData, param):
             nextFork = nextPath[nextIdx]
         except IndexError:
             report.set_fail(log.INVALID_INDEX)
+            if printerino:
+                print('a')
             break
-        
+        if fork.after_strand() != nextFork.before_strand():
+            flip = True
         if flip:
+            if printerino:
+                print(fork)
+                print('----------------')
+                print(nextFork)
             nextFork = nextPath[nextIdx].flip_strands(lengthData, makeCopy=True)
+            if printerino:
+                print('flipped')
         if side == 2: 
 
             if fork.after_id() != fork.rid or \
             nextFork.before_id() != nextFork.rid or \
             fork.after_id() != nextFork.before_id():
                 report.set_fail(log.INVALID_ID)
+                if printerino:
+                    print(fork)
+                    print('=====================================')
+                    print(nextFork)
+                    print('b')
                 continue
 
             if valid_fork_pair(fork, nextFork):
@@ -166,7 +210,13 @@ def scaffold_pair(path, nextPath, side, nextSide, lengthData, param):
                 okay = True
                 break
             else:
+                if printerino:
+                    print(fork)
+                    print('===================')
+                    print(nextFork)
                 report.set_fail(log.JOIN_FAIL)
+                if printerino:
+                    print('c')
                 continue
 
                         
@@ -176,6 +226,8 @@ def scaffold_pair(path, nextPath, side, nextSide, lengthData, param):
             nextFork.after_id() != nextFork.rid or \
             fork.before_id() != nextFork.after_id():
                 report.set_fail(log.INVALID_ID)
+                if printerino:
+                    print('d')
                 continue
 
             if valid_fork_pair(nextFork, fork):
@@ -188,9 +240,13 @@ def scaffold_pair(path, nextPath, side, nextSide, lengthData, param):
                 break
             else:
                 report.set_fail(log.JOIN_FAIL)
+                if printerino:
+                    print('e')
                 continue
         else:
             report.set_fail(log.INVALID)
+            if printerino:
+                print('f')
             break
 
     reportSet = log.ReportSet(log.SCAFFOLD_ATTEMPT, reports)
@@ -209,6 +265,8 @@ def scaffold_pair(path, nextPath, side, nextSide, lengthData, param):
     pcOverlap = path_overlap(path, nextPath, lengthData, source='r')
     if pcOverlap[1] > 0.1:
         report.set_fail(log.OVERLAP)
+        if printerino:
+            print('overlap')
         return None
     
     if report.success: report.set_fail(log.UNKNOWN)   
@@ -235,13 +293,14 @@ def scaffold_pair(path, nextPath, side, nextSide, lengthData, param):
     #break
     #time.sleep(5)
     #leftovers.append(nextPath)
-        
+    if printerino:
+        print('unhandled')
+    
     return None
 
-def scaffold_all(path, validPaths, tigId, lengthData, normalize, param, linkedReads, arks, threshold):
+def scaffold_all(path, validPaths, tigId, lengthData, normalize, param, unitigs, linkedReads, arks, threshold):
     leftovers = []
     while len(validPaths) > 0:
-        
         print("--------------:")
 
         pos1 = normalize(path[0])
@@ -252,7 +311,8 @@ def scaffold_all(path, validPaths, tigId, lengthData, normalize, param, linkedRe
         smallDist = 1e9
         side = -1
         nextSide = -1
-
+        passLR = True
+        
         #find next closest validPath to either end
         for nextPath in validPaths:      
             i = i+1
@@ -261,7 +321,10 @@ def scaffold_all(path, validPaths, tigId, lengthData, normalize, param, linkedRe
                 if not checkLinkedReads(path, nextPath, linkedReads, threshold):
                     #print("not in linked reads")
                     #input()
+                    passLR = False
                     continue
+            
+            passLR = True
             
             nextPos1 = normalize(nextPath[0])
             nextPos2 = normalize(nextPath[-1])
@@ -288,14 +351,19 @@ def scaffold_all(path, validPaths, tigId, lengthData, normalize, param, linkedRe
                         smallIndex = i
                         smallDist =  abs(pos2 - nextPos2)
                         side, nextSide = 2,2
-                     
-        nextPath = validPaths.pop(smallIndex)
         
+        if not passLR:
+            arks = False
+            continue
+        
+        nextPath = validPaths.pop(smallIndex)
         newPath = scaffold_pair(path, nextPath, side, nextSide, lengthData, param)
         if newPath is None: 
             leftovers.append(nextPath)
         else: 
             path = newPath
+        
+        arks = True
         
     return (path, leftovers)
 
@@ -320,14 +388,18 @@ def filter_paths(paths, tigId, lengthData, param):
         if not path[0].has_id(tigId) and not path[-1].has_id(tigId):
             invalidPaths.append(path)
             continue
-        
+        print('===========================================================')
+        print(path[0])
+        print(path[-1])
         validPaths.append(path)
-        size = path_length(path)
-
+        size = path_length_id(path, tigId)
+        print(size)
         if size > bigSize:
             bigSize = size
             bigIndex = len(validPaths)-1
-          
+    
+    print(bigIndex)
+    print('~~~~~~~~~~')
     return (validPaths, invalidPaths, bigIndex)
 
 
@@ -340,7 +412,7 @@ def normalize_pos(fork, tigId, length):
         pos = length - pos
     return pos
 
-def scaffold(paths, tigId, lengthData, param, linkedReads, arks, threshold, startPath=None):
+def scaffold(paths, tigId, lengthData, param, unitigs, linkedReads, arks, threshold, startPath=None):
     
     log.out("Scaffolding to contig: " + str(tigId), 1, param)
     normalize = lambda fork: normalize_pos(fork, tigId, lengthData[tigId])
@@ -358,7 +430,7 @@ def scaffold(paths, tigId, lengthData, param, linkedReads, arks, threshold, star
         path = startPath
 
     #2) try to scaffold all validPaths to path
-    path, leftovers = scaffold_all(path, validPaths, tigId, lengthData, normalize, param, linkedReads, arks, threshold)
+    path, leftovers = scaffold_all(path, validPaths, tigId, lengthData, normalize, param, unitigs, linkedReads, arks, threshold)
     
     return (path, invalidPaths, leftovers)
     
