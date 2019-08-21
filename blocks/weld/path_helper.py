@@ -103,7 +103,6 @@ def add_Nforks(path, lengthData):
         f1 = path[0]
         f2 = path[-1]
         
-<<<<<<< HEAD
         firstqPos = f1.get_pos_norm(lengthData, q=True)
         lastqPos = f2.get_pos_norm(lengthData, q=True)
             
@@ -111,22 +110,6 @@ def add_Nforks(path, lengthData):
             if fork.is_Nfork(): continue
             qpos = fork.get_pos_norm(lengthData, q=True) 
             if qpos > lastqPos:
-=======
-        if not f1.is_Nfork():
-            firstqPos = f1.qpos if f1.qstrand == 1 else lengthData[f1.qid] - f1.qpos
-        else:
-            firstqPos = None
-        if not f2.is_Nfork():
-            lastqPos = f2.qpos if f2.qstrand == 1 else lengthData[f2.qid] - f2.qpos
-        else:
-            lastqPos = None
-            
-        for fork in path:
-            if fork.is_Nfork(): continue
-            qpos = fork.qpos if fork.qstrand == 1 else lengthData[fork.qid] - fork.qpos
-            
-            if lastqPos is not None and qpos > lastqPos:
->>>>>>> e3385a3d07b317215aabf5716fc1f338693e7096
                 print("ending with NNN")
                 endNFlag = True
                 break
