@@ -79,8 +79,8 @@ def main():
 
     for tigId in qids:
         
-       # if(int(tigId) < 295): 
-       #    continue
+        if(int(tigId) <= 90): 
+          continue
 
 
         print("Contig: " + tigId)
@@ -89,7 +89,7 @@ def main():
                 
         if contig is None: emptyIds.append(tigId)
         else:
-            path = welder.weld(contig, seqData, lengthData, param)
+            path = welder.weld(contig, seqData, lengthData, param, plot=True)
             
 
             if len(path) < 1: emptyIds.append(tigId)
@@ -339,6 +339,6 @@ def main():
         fasta.close()
     
 
-if __name__== "__main__":
-  main()
-  print("done")
+#if __name__== "__main__":
+#  main()
+#  print("done")

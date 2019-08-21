@@ -102,12 +102,12 @@ def add_Nforks(path, lengthData):
         f1 = path[0]
         f2 = path[-1]
         
-        firstqPos = f1.qpos if f1.qstrand == 1 else lengthData[f1.qid] - f1.qpos
-        lastqPos = f2.qpos if f2.qstrand == 1 else lengthData[f2.qid] - f2.qpos
+        firstqPos = f1.get_pos_norm(lengthData, q=True)
+        lastqPos = f2.get_pos_norm(lengthData, q=True)
             
         for fork in path:
             if fork.is_Nfork(): continue
-            qpos = fork.qpos if fork.qstrand == 1 else lengthData[fork.qid] - fork.qpos
+            qpos = fork.get_pos_norm(lengthData, q=True) 
             if qpos > lastqPos:
                 print("ending with NNN")
                 endNFlag = True
@@ -502,12 +502,6 @@ def plot_length(path, lengthData, printout=True, outputPath=None):
 
 def path_overlap(path1, path2, lengthData, source=None, printInfo=False):
                                            #'r' for ref, 'q' for query, None = both
-    def normalized_pos(fork, tigId):
-        pos = fork.get_pos_by_id(tigId)
-        if pos is None: return None
-        if fork.get_strand_by_id(tigId) == -1:
-            pos = lengthData[str(tigId)] - pos
-        return pos
     
     def fill_dict(path):
         starts = dict()
@@ -520,7 +514,7 @@ def path_overlap(path1, path2, lengthData, source=None, printInfo=False):
                  ([fork.qid] if source == 'q' else [])
                  
             for tigId in tigIds:
-                pos = normalized_pos(fork, tigId)
+                pos = fork.get_pos_by_id_norm(tigId, lengthData)
                 tigId = str(tigId)
                 if tigId not in starts:
                     starts[tigId] = pos

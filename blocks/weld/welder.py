@@ -3,9 +3,11 @@ import copy
 
 import sys
 sys.path.append('../')
+sys.path.append('../analysis/')
 import log
 from paths import Path
 import path_helper
+import dotplot
 
 def weld_megablock(megablock, seqData, param):
     '''
@@ -134,25 +136,32 @@ def join_megablockpaths(paths, lengthData, param):
     return path
 
 
-def weld(contig, seqData, lengthData, param):
+def weld(contig, seqData, lengthData, param, plot=False):
     '''
     ...
     '''
-    contigPaths = []
+   
     
-    plot = False
-    plotPaths = []
+    contigPaths = []
+    i = 0
     
     for megablock in reversed(contig.mblocks):
-        megaPath = weld_megablock(megablock, seqData, param)
-        
+        blockPaths = weld_megablock(megablock, seqData, param)
+
         if plot:
-            plotPaths.append(copy.deepcopy(megaPath))
+            #plotPaths.append(copy.deepcopy(megaPath))
+            if i>17:
+                dotplot.gaps_dotplot(blockPaths, seqData, lengthData)
+            if i>2:
+                dotplot.paths_dotplot(blockPaths, seqData, lengthData)
 
-        contigPath = join_blockpaths(megaPath, lengthData, param)
+        i = i + 1
+        
+        megaPath = join_blockpaths(blockPaths, lengthData, param)
+        dotplot.megapath_dotplot(megaPath, seqData, lengthData)
 
-        if contigPath is not None and len(contigPath) > 0:
-            contigPaths.append(contigPath)
+        if megaPath is not None and len(megaPath) > 0:
+            contigPaths.append(megaPath)
         
                 
     path = join_megablockpaths(contigPaths, lengthData, param)

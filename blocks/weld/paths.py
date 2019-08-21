@@ -14,6 +14,12 @@ class Path:
     def extend(self, forks):  self.path.extend(forks)
     def add_path(self, other): self.path.extend(other.path)
 
+
+    def extract_subpath(self, idx1=None, idx2=None): 
+        subpath = Path()
+        subpath.extend(self[idx1:idx2])
+        return subpath
+    
     def pop(self, index=None):
         if len(self.path) < 1: return None        
         if index is None:      return self.path.pop()        
@@ -194,12 +200,12 @@ class Fork:
     def before_id(self):     return self.rid     if self.switch == "q" else self.qid
     def after_id(self):      return self.qid     if self.switch == "q" else self.rid
     def before_pos(self):    return self.rpos    if self.switch == "q" else self.qpos
-    def after_pos(self):     return self.qpos    if self.switch == "q" else self.rpos
+    def after_pos(self):     return self.qpos    if self.switch == "q" else self.rpos  
     def before_strand(self): return self.rstrand if self.switch == "q" else self.qstrand
     def after_strand(self):  return self.qstrand if self.switch == "q" else self.rstrand
     def before_switch(self): return "r"          if self.switch == "q" else "q"
     def after_switch(self):  return self.switch
-
+        
     def has_id(self, tigId): return self.rid == tigId or self.qid == tigId
 
     def switch_query(self):     self.switch = "q"
@@ -228,19 +234,44 @@ class Fork:
 
 
     def get_pos(self, q=True):
-        if q: return self.qpos
-        else: return self.rpos
-        
+        return self.qpos if q else self.rpos
+    def get_id(self, q=True):
+        return self.qid if q else self.rid
+    def get_strand(self, q=True):
+        return self.qstrand if q else self.rstrand
+
     def get_pos_by_id(self, tigId):
         if self.qid == tigId:    return self.qpos
         elif self.rid == tigId:  return self.rpos
         else:                    return None
-                
+
     def get_strand_by_id(self, tigId):
         if self.qid == tigId:    return self.qstrand
         elif self.rid == tigId:  return self.rstrand
         else:                    return None
-        
+    
+    def normalize_pos(self, pos, strand, tigId, lengthData):
+        if pos is None or self.is_Nfork(): return pos
+        if strand == -1:
+            return lengthData[tigId] - pos
+        return pos
+    
+    def before_pos_norm(self, lengthData):   
+        return self.normalize_pos(self.before_pos(), self.before_strand(), 
+                                  self.before_id(), lengthData)
+    def after_pos_norm(self, lengthData):   
+        return self.normalize_pos(self.after_pos(), self.after_strand(), 
+                                  self.after_id(), lengthData)
+    def get_pos_norm(self, lengthData, q=True):
+        if q: return self.normalize_pos(self.qpos, self.qstrand, 
+                                        self.qid, lengthData)
+        return self.normalize_pos(self.rpos, self.rstrand, 
+                                        self.rid, lengthData)
+    def get_pos_by_id_norm(self, tigId, lengthData):
+        if self.qid == tigId:    return self.get_pos_norm(self, lengthData, q=True)
+        elif self.rid == tigId:  return self.get_pos_norm(self, lengthData, q=False)
+        else:                    return None
+
     def __repr__(self):
         sq = str(self.qid) + " " + str(self.qpos) + " (" + str(self.qstrand) + ")"
         sr = str(self.rid) + " " + str(self.rpos) + " (" + str(self.rstrand) + ")"

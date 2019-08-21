@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import random
 import matplotlib.patheffects as pe
-import path_helper as ph
+#import path_helper as ph
 
 def plot_identity(contig, outputPath=None):
     
