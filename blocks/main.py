@@ -15,6 +15,14 @@ import path_helper
 import sys
 import copy 
 import re
+
+import numpy as np
+from Bio import SeqIO
+import gzip
+import pickle
+import pandas as pd
+from analysis import region_extract
+import os
 #----Parameters-------------------------
 
 if len(sys.argv) > 1 :
@@ -33,7 +41,6 @@ def validate_ids(rids, qids):
         print("Please ensure each ID is unique.")
         return False
     return True
-        
 
 def main():
 
@@ -58,35 +65,27 @@ def main():
     
     aligndf = io.parse_alignments(param.summaryFile)
     
+    lrdict = scaffolder.linkedReadsDict(rids, param.arks_output)
+    #lrdf = scaffolder.linkedReadsDF(rids, lengthData, param.arks_output)
+    unitigs = scaffolder.unitigsDict(param.unitigsBed)
+
     #--------------------------------------
     
     paths = []
     emptyIds = []
     print("Iterating over query contigs...")
 
-    #outputPath="/home/scott/Dropbox/hybrid-pipeline/blocks/plots/"  \
-    #outputPath="/media/scott/HDD/sickkids/NA24385/plots/" \
-    outputPath="/media/scott/Rotom/assembly_data/plots/giab/" 
+    outputPath="/Users/allen bao/Documents/assembly_data/plots/"
     outputPath=None
 
-    '''
-    for tigId in rids:
-        print("Contig: " + tigId)
-        contig = stitcher.stitch(tigId, aligndf, lengthData, param, \
-                                 plotDir=outputPath, q=False)
-    '''
-
-
     for tigId in qids:
-        
-        if(int(tigId) <= 90): 
-          continue
-
+       
+       # if(int(tigId) < 295): 
+       #    continue
 
         print("Contig: " + tigId)
         contig = stitcher.stitch(tigId, aligndf, lengthData, param, \
                                  plotDir=outputPath, q=True)
-                
         if contig is None: emptyIds.append(tigId)
         else:
             path = welder.weld(contig, seqData, lengthData, param, plot=True)
@@ -95,7 +94,14 @@ def main():
             if len(path) < 1: emptyIds.append(tigId)
             else: 
                 paths.append(path)
+    
+    
+    with open('CF062_paths2.pickle', 'wb') as handle:
+        pickle.dump(paths, handle)
         
+    with open('CF062_paths.pickle', 'rb') as handle:
+        paths = pickle.load(handle)
+    
      
     '''
     counter=1
@@ -150,21 +156,31 @@ def main():
 
     '''
     
-    
-    
-    with open('giabpath10k.pickle', 'rb') as handle:
+    with open('CF062_paths2.pickle', 'rb') as handle:
         p1 = pickle.load(handle)
-    with open('giabpathsmall.pickle', 'rb') as handle:
-        p2 = pickle.load(handle)
+    #with open('CF062_paths.pickle', 'rb') as handle:
+        #p2 = pickle.load(handle)
     
     cutoff=0.5e6
     paths=[]
     shortPaths=[]
-    allPaths=[]
-    for p in p1 + p2:
+    #allPaths=[]
+    
+    unique = []
+    dup = []
+    
+    for p in p1:  # + p2:
         if len(p) < 1: continue
     
-    
+        #remove duplicate paths
+        p_tup = p[0].rid, p[0].rpos, p[0].rstrand, p[-1].qid, p[-1].qpos, p[-1].qstrand
+        if p_tup not in unique:
+            unique.append(p_tup)
+        else:          
+            dup.append(p)
+            #dup.append(p1.pop(i))
+            continue
+
         #clean up unnecessary NNNs
         #--------------------------
         if p[0].is_Nfork():
@@ -195,7 +211,7 @@ def main():
         else:
             shortPaths.append(p)
         
-    allPaths = copy.deepcopy(paths + shortPaths)
+    #allPaths = copy.deepcopy(paths + shortPaths)
 
     param = Parameters()
 
@@ -205,21 +221,49 @@ def main():
     refTigIds.sort(key=lambda x: -lengthData[x])
     queryTigIds.sort(key=lambda x: -lengthData[x])
 
+    import contig_scaffolder as scaffolder
+    import path_helper
+    
     repeat = 0
     
     while repeat < 2:
-        
+        temp = []
+        lemp = []
+        remp = []
         scaffolds = []
         complete = dict()
 
         for tigId in refTigIds:
+            #tigId = "tig00007642_pilon_pilon"
             if tigId in complete:
                 continue
             
-            scaffold, paths, leftover = scaffolder.scaffold(paths, tigId, lengthData, param)
+            scaffold, paths, leftover = scaffolder.scaffold(paths, tigId, lengthData, param, unitigs, lrdict, param.arks, param.LR_THRESHOLD)
+            '''
+            print('23094029834234')
+            print(scaffold[0].rid)
+            print('239048392474038')
+            for i in range(0, len(paths)):
+                for j in range(0, len(paths[i])):
+                    if str(paths[i][j].qid) == '172':
+                        k = i,j
+                        temp.append(k)
+            '''            
             paths = paths + leftover
+            '''
+            for i in range(0, len(leftover)):
+                for j in range(0, len(leftover[i])):
+                    if str(leftover[i][j].qid) == '172':
+                        k = i,j
+                        remp.append(k)
+            '''
             complete[tigId] = True
-            
+            '''
+            for i in range(0, len(scaffold)):
+                if str(scaffold[i].qid) == '172':
+                    lemp.append(i)
+                        #print("+++++===+=+")
+            '''
             flag = False
             while not flag:
                 flag = True
@@ -229,7 +273,7 @@ def main():
                 if not scaffold[0].is_Nfork():
                     tigId = scaffold[0].rid
                     if tigId not in complete:
-                        scaffold, paths, leftover = scaffolder.scaffold(paths, tigId, lengthData, param, scaffold)
+                        scaffold, paths, leftover = scaffolder.scaffold(paths, tigId, lengthData, param, unitigs, lrdict, param.arks, param.LR_THRESHOLD, scaffold)
                         paths = paths + leftover
                         complete[tigId] = True
                         flag = False
@@ -237,7 +281,7 @@ def main():
                 if not scaffold[-1].is_Nfork():
                     tigId = scaffold[-1].rid
                     if tigId not in complete:
-                        scaffold, paths, leftover = scaffolder.scaffold(paths, tigId, lengthData, param, scaffold)
+                        scaffold, paths, leftover = scaffolder.scaffold(paths, tigId, lengthData, param, unitigs, lrdict, param.arks, param.LR_THRESHOLD, scaffold)
                         paths = paths + leftover
                         complete[tigId] = True
                         flag = False
@@ -271,6 +315,8 @@ def main():
     
     #note: it seems tig00031379_pilon_pilon is misassembled between chr3 and 10 but is fixed? :)
     
+    #scaffolds = p1
+    
     scaffolds.sort(key=lambda scaffold: path_helper.path_length(scaffold))
     lengths = [path_helper.path_length(scaffold) for scaffold in scaffolds]
     
@@ -279,8 +325,9 @@ def main():
     for i in range(len(scaffolds)):
         scaffold = scaffolds[i]
         shouldKeep=True
-        print(i)
-        if(i<340): continue
+        #print(i)
+        #if (path_helper.path_length(scaffolds[i]) < 50000): continue
+        #if(i<340): continue
         for j in reversed(range(i, len(scaffolds))):
             scaffold2 = scaffolds[j]
             if lengths[j] >= lengths[i] and i != j:
@@ -307,6 +354,7 @@ def main():
                                 shouldKeep=False
 
         if shouldKeep:
+            print(i)
             keep.append(scaffold)
             
             
@@ -321,24 +369,85 @@ def main():
 
     keep.sort(key=lambda scaffold: -path_helper.path_length(scaffold))
     
-    file="/media/scott/Rotom/assembly_data/NA24385/hybrid.fa"
-    sourceFile="/media/scott/Rotom/assembly_data/NA24385/hybrid_source.fa"
+    file="/Users/allen bao/Documents/assembly_data/CF062_hybrid_LR2_strict.fa"
+    sourceFile="/Users/allen bao/Documents/assembly_data/hybrid_source.fa"
 
     with open(file, "w+") as fasta:
         with open(sourceFile, "w+") as fastaSource:
     
             for i in range(len(keep)):
-                print(i)
                 sequence, source = output.path_to_sequence2(keep[i], seqData)
                 fasta.write(">hybrid" + "_" + str(i) +"\n")
                 fasta.write(re.sub("(.{64})", "\\1\n", "".join(sequence), 0, re.DOTALL) + "\n")
-                fastaSource.write(">hybrid" + "_" + str(i) +"\n")
-                fastaSource.write(re.sub("(.{64})", "\\1\n", "".join(source), 0, re.DOTALL) + "\n")
+                #fastaSource.write(">hybrid" + "_" + str(i) +"\n")
+                #fastaSource.write(re.sub("(.{64})", "\\1\n", "".join(source), 0, re.DOTALL) + "\n")
                 
             fastaSource.close()
         fasta.close()
-    
 
-#if __name__== "__main__":
-#  main()
-#  print("done")
+if __name__== "__main__":
+  main()
+  print("done")
+  exit()
+
+def checkLR(p1, lrdict):
+#checking how often path-switches are found in linked reads (when canu tig changes)
+    distrib = dict()
+    distrib[0] = 0
+    dists = dict()
+    dists[0] = list()
+    LRtigs = []
+    pathTigs = []
+    notPathTigs = []
+    for p in p1:
+        #if path_helper.path_length(p) < 10000000:
+            #continue
+        for i in range(0, len(p)-1):
+            if p[i].rid not in pathTigs:
+                pathTigs.append(p[i].rid)
+            if p[i+1].rid not in pathTigs:
+                pathTigs.append(p[i+1].rid)
+            if p[i].rid != p[i+1].rid and p[i].rid != 'NNN' and p[i+1].rid != 'NNN':
+                tig1 = p[i].rid
+                tig2 = p[i+1].rid
+                pos1 = p[i].after_pos()
+                
+                pos2 = p[i+1].before_pos()
+                dist = abs(pos2 - pos1)
+                if tig1 in lrdict:
+                    a = lrdict[tig1]
+                    if tig2 in a:
+                        n = lrdict[tig1][tig2]
+                        if n not in distrib:
+                            distrib[n] = 1
+                            dists[n] = list()
+                            dists[n].append(dist)
+                        else:
+                            distrib[n] += 1
+                            dists[n].append(dist)
+                    else:
+                        distrib[0] += 1
+                        dists[0].append(dist)
+                        #print('tig2: '+tig2)
+                        #print(p[i])
+                        #print(p[i+1])
+                        #print('===============')
+                else:
+                    distrib[0] += 1
+                    dists[0].append(dist)
+                    #print('tig1: '+tig1)
+
+                
+    distribLR = dict()
+    for tig in lrdict:
+        if tig not in LRtigs:
+            LRtigs.append(tig)
+        for tig2 in lrdict[tig]:
+            if lrdict[tig][tig2] not in distribLR:
+                distribLR[lrdict[tig][tig2]] = 1
+            else:
+                distribLR[lrdict[tig][tig2]] += 1
+    for tig in LRtigs:
+        if tig not in pathTigs:
+            notPathTigs.append(tig)
+

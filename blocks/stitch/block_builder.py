@@ -31,7 +31,6 @@ def construct_blocks(chunks, param):
     minPcId = param.CHUNK_MIN_IDENT
 
     while len(chunks) > 0:
-         
         i = 0
         chunk = chunks.pop()
         block = Block(chunk)
@@ -43,7 +42,7 @@ def construct_blocks(chunks, param):
             idDist = chunk.id - nextChunk.id
             idSkip = idDist-1
             allowableGap = max(param.CHUNK_MAX_DIST, idSkip*param.CHUNK_SKIP_BP)
-            bpDist = abs(chunk.rstart - nextChunk.rstart) - param.CHUNK_SIZE
+            bpDist = abs(chunk.mid(q=False) - nextChunk.mid(q=False)) - param.CHUNK_SIZE
             pcId = nextChunk.pcid
             
             #chunk id improper
@@ -54,7 +53,13 @@ def construct_blocks(chunks, param):
             #bp gap too big
             if bpDist > allowableGap:
                 continue
+            #gap is in wrong direction
+            strand = block.get_dir(q=False)
+            bpDist = (chunk.mid(q=False) - nextChunk.mid(q=False)) - (param.CHUNK_SIZE * strand)
             
+            if (bpDist*strand) < int(param.CHUNK_SIZE/2):
+                continue
+                
             #percent identity too low
             if pcId < minPcId:
                 continue

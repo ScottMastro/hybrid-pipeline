@@ -2,7 +2,115 @@ import re
 import log
 from path_helper import valid_fork_pair
 from path_helper import path_overlap
-from path_helper import path_length
+#from path_helper import path_length
+from path_helper import path_length_id
+import pandas as pd
+
+def unitigsDict(unitigs):
+    utgdict_dict = dict()
+    file = open(unitigs, 'r')
+    for line in file:
+        sline = line.split('\t')
+        ctg_raw = sline[0]
+        ctg = "tig"+ctg_raw[3:]+"_pilon_pilon"
+        start = sline[1]
+        end = sline[2]
+        rng = (start, end)
+        utg = sline[3]
+        
+        if ctg not in utgdict_dict.keys():
+            utgdict = dict()
+            utgdict[utg] = rng
+            utgdict_dict[ctg] = utgdict
+        else:
+            utgdict_dict[ctg][utg] = rng
+    return utgdict_dict
+
+def linkedReadsDict(canutigs, arks_output):
+    lrdict_dict = dict()
+    file = open(arks_output, 'r')
+    for line in file:
+        sline = line.split('\t')
+        first = sline[1]
+        second = sline[2]
+        tig1_r = first[1:] #tig1_r = tig1_renamed --> contig in the arks renamed fasta file
+        tig2_r = second[1:]
+        tig1 = canutigs[(int(tig1_r))-1] #finding the original contig from the renamed one
+        tig2 = canutigs[(int(tig2_r))-1]
+        bars = int(sline[3])
+        
+        if tig1 not in lrdict_dict.keys():
+            lrdict = dict()
+            lrdict[tig2] = bars
+            lrdict_dict[tig1] = lrdict
+        else:
+            lrdict_dict[tig1][tig2] = bars
+    return lrdict_dict
+
+def linkedReadsDF(canutigs, lengthData, arks_output):
+    #Make df with linked reads, currently unused
+    lrdf = pd.DataFrame(columns=['tig1', 'tig1len', 'dir2', 'tig2', 'tig2len', 'dir2', 'n_barcodes'])
+    file = open(arks_output, 'r')
+    i = 0
+    freq_dict = dict()
+    for tig in canutigs:
+        freq_dict[tig] = 0 
+    
+    for line in file:
+        sline = line.split('\t')
+        first = sline[1]
+        second = sline[2]
+        tig1_r = first[1:] #tig1_r = tig1_renamed --> contig in the arks renamed fasta file
+        tig2_r = second[1:]
+        
+        tig1 = canutigs[(int(tig1_r))-1] #finding the original contig from the renamed one
+        tig1len = lengthData[tig1]
+        dir1 = first[0]
+        tig2 = canutigs[(int(tig2_r))-1]
+        tig2len = lengthData[tig2]
+        dir2 = second[0]
+        bars = int(sline[3])
+        
+        freq_dict[tig1] += bars
+        freq_dict[tig2] += bars
+        
+        lrdf.loc[i] = tig1, tig1len, dir1, tig2, tig2len, dir2, bars
+        i += 1
+    #tig1_freq and tig2_freq = total number of barcodes for this contig that connect to contigs other than the one in the current row
+    list1 = []
+    list2 = []
+    for index, row in lrdf.iterrows():
+        list1.append(freq_dict[row[0]]-row[6]) 
+        list2.append(freq_dict[row[3]]-row[6])
+    lrdf.insert(2, 'tig1_freq', list1)
+    lrdf.insert(6, 'tig2_freq', list2)
+    
+    file.close()
+    lrdf.to_csv('linked_reads.csv')
+    
+    return lrdf
+
+def checkLinkedReads(path, nextPath, linkedReads, threshold):   
+    tig1a = path[0].rid
+    tig1b = path[-1].rid
+    tig2a = nextPath[0].rid
+    tig2b = nextPath[-1].rid
+    
+    if tig1a in linkedReads.keys():
+        if tig2a in linkedReads[tig1a].keys():
+            if linkedReads[tig1a][tig2a] >= threshold:
+                return True
+        if tig2b in linkedReads[tig1a].keys():
+            if linkedReads[tig1a][tig2b] >= threshold:
+                return True
+    if tig1b in linkedReads.keys():
+        if tig2a in linkedReads[tig1b].keys():
+            if linkedReads[tig1b][tig2a] >= threshold:
+                return True
+        if tig2b in linkedReads[tig1b].keys():
+            if linkedReads[tig1b][tig2b] >= threshold:
+                return True
+    return False
 
 def output(path):
     (sequence, source) = path_to_sequence(path, seqData)
@@ -42,10 +150,19 @@ def output(path):
         
     
 def scaffold_pair(path, nextPath, side, nextSide, lengthData, param):
-
+    print('side: '+str(side))
+    print('nextSide: '+str(nextSide))
+    printerino = False
+    if str(path[0].qid) == '172': 
+        printerino = True
+    if str(nextPath[0].qid) == '172':
+        printerino = True
+    
     reports =  []
         
     for shift in [0,1,2,3]:
+        if printerino:
+            print(shift)
         report = log.Report(log.SCAFFOLD_ATTEMPT)
         reports.append(report)
         idx = 0 if side == 1 else -1
@@ -59,16 +176,30 @@ def scaffold_pair(path, nextPath, side, nextSide, lengthData, param):
             nextFork = nextPath[nextIdx]
         except IndexError:
             report.set_fail(log.INVALID_INDEX)
+            if printerino:
+                print('a')
             break
-        
+        if fork.after_strand() != nextFork.before_strand():
+            flip = True
         if flip:
+            if printerino:
+                print(fork)
+                print('----------------')
+                print(nextFork)
             nextFork = nextPath[nextIdx].flip_strands(lengthData, makeCopy=True)
+            if printerino:
+                print('flipped')
         if side == 2: 
 
             if fork.after_id() != fork.rid or \
             nextFork.before_id() != nextFork.rid or \
             fork.after_id() != nextFork.before_id():
                 report.set_fail(log.INVALID_ID)
+                if printerino:
+                    print(fork)
+                    print('=====================================')
+                    print(nextFork)
+                    print('b')
                 continue
 
             if valid_fork_pair(fork, nextFork):
@@ -79,7 +210,13 @@ def scaffold_pair(path, nextPath, side, nextSide, lengthData, param):
                 okay = True
                 break
             else:
+                if printerino:
+                    print(fork)
+                    print('===================')
+                    print(nextFork)
                 report.set_fail(log.JOIN_FAIL)
+                if printerino:
+                    print('c')
                 continue
 
                         
@@ -89,6 +226,8 @@ def scaffold_pair(path, nextPath, side, nextSide, lengthData, param):
             nextFork.after_id() != nextFork.rid or \
             fork.before_id() != nextFork.after_id():
                 report.set_fail(log.INVALID_ID)
+                if printerino:
+                    print('d')
                 continue
 
             if valid_fork_pair(nextFork, fork):
@@ -101,9 +240,13 @@ def scaffold_pair(path, nextPath, side, nextSide, lengthData, param):
                 break
             else:
                 report.set_fail(log.JOIN_FAIL)
+                if printerino:
+                    print('e')
                 continue
         else:
             report.set_fail(log.INVALID)
+            if printerino:
+                print('f')
             break
 
     reportSet = log.ReportSet(log.SCAFFOLD_ATTEMPT, reports)
@@ -116,11 +259,14 @@ def scaffold_pair(path, nextPath, side, nextSide, lengthData, param):
     reportSet.add_detail(log.NEXT_SIDE, copy.deepcopy(nextSide))
 
     #if okay: continue
-    if okay: return path
+    if okay: 
+        return path
 
     pcOverlap = path_overlap(path, nextPath, lengthData, source='r')
     if pcOverlap[1] > 0.1:
         report.set_fail(log.OVERLAP)
+        if printerino:
+            print('overlap')
         return None
     
     if report.success: report.set_fail(log.UNKNOWN)   
@@ -147,14 +293,14 @@ def scaffold_pair(path, nextPath, side, nextSide, lengthData, param):
     #break
     #time.sleep(5)
     #leftovers.append(nextPath)
-        
+    if printerino:
+        print('unhandled')
+    
     return None
 
-def scaffold_all(path, validPaths, tigId, lengthData, normalize, param):
-
+def scaffold_all(path, validPaths, tigId, lengthData, normalize, param, unitigs, linkedReads, arks, threshold):
     leftovers = []
     while len(validPaths) > 0:
-        
         print("--------------:")
 
         pos1 = normalize(path[0])
@@ -165,10 +311,21 @@ def scaffold_all(path, validPaths, tigId, lengthData, normalize, param):
         smallDist = 1e9
         side = -1
         nextSide = -1
-
+        passLR = True
+        
         #find next closest validPath to either end
         for nextPath in validPaths:      
             i = i+1
+            
+            if arks:
+                if not checkLinkedReads(path, nextPath, linkedReads, threshold):
+                    #print("not in linked reads")
+                    #input()
+                    passLR = False
+                    continue
+            
+            passLR = True
+            
             nextPos1 = normalize(nextPath[0])
             nextPos2 = normalize(nextPath[-1])
                         
@@ -194,14 +351,19 @@ def scaffold_all(path, validPaths, tigId, lengthData, normalize, param):
                         smallIndex = i
                         smallDist =  abs(pos2 - nextPos2)
                         side, nextSide = 2,2
-                     
+        
+        if not passLR:
+            arks = False
+            continue
+        
         nextPath = validPaths.pop(smallIndex)
-
         newPath = scaffold_pair(path, nextPath, side, nextSide, lengthData, param)
         if newPath is None: 
             leftovers.append(nextPath)
         else: 
             path = newPath
+        
+        arks = True
         
     return (path, leftovers)
 
@@ -217,21 +379,27 @@ def filter_paths(paths, tigId, lengthData, param):
 
     #find all scaffolds that start or end with tigId
     #keep track of the biggest one
+    i=-1
     for path in paths:
+        i += 1
         if len(path) < 1:
             continue
 
         if not path[0].has_id(tigId) and not path[-1].has_id(tigId):
             invalidPaths.append(path)
             continue
-        
+        print('===========================================================')
+        print(path[0])
+        print(path[-1])
         validPaths.append(path)
-        size = path_length(path)
-
+        size = path_length_id(path, tigId)
+        print(size)
         if size > bigSize:
             bigSize = size
             bigIndex = len(validPaths)-1
-          
+    
+    print(bigIndex)
+    print('~~~~~~~~~~')
     return (validPaths, invalidPaths, bigIndex)
 
 
@@ -244,7 +412,7 @@ def normalize_pos(fork, tigId, length):
         pos = length - pos
     return pos
 
-def scaffold(paths, tigId, lengthData, param, startPath=None):
+def scaffold(paths, tigId, lengthData, param, unitigs, linkedReads, arks, threshold, startPath=None):
     
     log.out("Scaffolding to contig: " + str(tigId), 1, param)
     normalize = lambda fork: normalize_pos(fork, tigId, lengthData[tigId])
@@ -262,7 +430,7 @@ def scaffold(paths, tigId, lengthData, param, startPath=None):
         path = startPath
 
     #2) try to scaffold all validPaths to path
-    path, leftovers = scaffold_all(path, validPaths, tigId, lengthData, normalize, param)
+    path, leftovers = scaffold_all(path, validPaths, tigId, lengthData, normalize, param, unitigs, linkedReads, arks, threshold)
     
     return (path, invalidPaths, leftovers)
     

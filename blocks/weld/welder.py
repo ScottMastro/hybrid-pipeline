@@ -75,7 +75,7 @@ def join_blockpaths(paths, lengthData, param):
         ok = path_helper.check_path(path)
         if not ok:
             print("Not ok")
-            input()  
+            #input()  
     
     # fix strand orientation
     for i in range(len(paths)-1):
@@ -108,7 +108,7 @@ def join_megablockpaths(paths, lengthData, param):
         ok = path_helper.check_path(path)
         if not ok:
             print("Not ok")
-            input()  
+            #input()  
     
     # fix strand orientation
     for i in range(len(paths)-1):
@@ -142,13 +142,20 @@ def weld(contig, seqData, lengthData, param, plot=False):
     '''
    
     
+<<<<<<< HEAD
     contigPaths = []
     i = 0
     
+=======
+    plot = False
+    plotPaths = []
+        
+>>>>>>> e3385a3d07b317215aabf5716fc1f338693e7096
     for megablock in reversed(contig.mblocks):
         blockPaths = weld_megablock(megablock, seqData, param)
 
         if plot:
+<<<<<<< HEAD
             #plotPaths.append(copy.deepcopy(megaPath))
             if i>17:
                 dotplot.gaps_dotplot(blockPaths, seqData, lengthData)
@@ -162,10 +169,17 @@ def weld(contig, seqData, lengthData, param, plot=False):
 
         if megaPath is not None and len(megaPath) > 0:
             contigPaths.append(megaPath)
+=======
+            plotPaths.append(copy.deepcopy(megaPath))
         
-                
+        contigPath = join_blockpaths(megaPath, lengthData, param)
+        
+        if contigPath is not None and len(contigPath) > 0:
+            contigPaths.append(contigPath)
+>>>>>>> e3385a3d07b317215aabf5716fc1f338693e7096
+        
+     
     path = join_megablockpaths(contigPaths, lengthData, param)
-
         
     ok = path_helper.check_path(path)
     
