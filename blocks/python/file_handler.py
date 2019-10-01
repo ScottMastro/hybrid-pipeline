@@ -46,7 +46,7 @@ def read_fasta(fasta):
     """
 
     if(fasta[-2:] == "gz"):
-        with gzip.open(fasta, "rb") as handle:
+        with gzip.open(fasta, "rt") as handle:
             records = list(SeqIO.parse(handle, "fasta"))
     else:
         records = list(SeqIO.parse(fasta, "fasta"))
