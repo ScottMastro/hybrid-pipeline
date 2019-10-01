@@ -38,7 +38,7 @@ def check_identity(alignment, cutPos, side, buffer, minPercent):
     
     def check(start, end):
         seq = alignment.alignment[1][start:end]
-        percentId = 100.0 * seq.count('|') / len(seq)
+        percentId = 100.0 * seq.count('|') / (len(seq)+1)
 
         #print(str(percentId) + "% match (min " + str(minPercent) + "%)." )
         #print("------------------------\n")
