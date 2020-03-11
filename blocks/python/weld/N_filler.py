@@ -1,7 +1,7 @@
 import sys
 sys.path.append('..')
 import log.log as logger
-
+OUTPUT_FILE_NAME = "gap_fill.bed"
 import re
 from weld.paths import Path
 import weld.aligner as aligner
@@ -75,6 +75,7 @@ def fill_NNNs(qSeq, rSeq, block, param):
     Identifies and creates Forks around NNNs in the query sequence between Nstart and
     Nend using the block to guide the alignments. Returns a Path that fills in NNNs.
     '''
+    
     Nstart, Nend = block.left(q=True), block.right(q=True)
 
     minPos = min(Nstart, Nend)
@@ -104,6 +105,11 @@ def fill_NNNs(qSeq, rSeq, block, param):
                     continue
                 else:
                     logger.out("N filling unsuccessful. Giving up.", 2, param)
+        
+                    rgb =  logger.rbg_generator(None)
+                    info = [block.qid, qstart, qend, ".", 0, "+", qstart, qend, rgb]
+                    logger.FileLogger().write_cols(OUTPUT_FILE_NAME, info)
+
                     break
                 
             startFork.switch_reference()
@@ -118,6 +124,15 @@ def fill_NNNs(qSeq, rSeq, block, param):
             pathN.add_fork(startFork)
             pathN.add_fork(endFork)
             logger.out("N filling successful.", 2, param)
+    
+            rgb =  logger.rbg_generator(block.rid)
+            rInfo = str(block.rid) + ":" + str(startFork.rpos) + "-" + str(endFork.rpos)
+            qInfo = [block.qid, startFork.qpos, endFork.qpos, \
+                     rInfo, 0, startFork.rstrand, \
+                    startFork.qpos, endFork.qpos, rgb]
+            logger.FileLogger().write_cols(OUTPUT_FILE_NAME, qInfo)
+
+
             break
         
     logger.out("N filling complete.", 2, param)

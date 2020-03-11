@@ -1,5 +1,8 @@
 from weld.paths import Path
 from weld.paths import get_Nfork
+import log.log as logger
+
+REORIENTATION_FILE_NAME = "inversions.txt"
 
 def interleave_paths(path1, path2):
     #assumes total ordering of query positions
@@ -211,20 +214,42 @@ def fix_path_orientation(path1, path2, lengthData, param, trimEnds=False):
         print(fork2)
         print("------")
 
+        def path_qinfo(path):
+            return str(path[0].qid) + ":" + str(path[0].qpos) + "-" + str(path[-1].qpos) + ":" + str(path[0].qstrand)
+        def forks_rinfo(fork1, fork2):
+            return str(fork1.rid) + ":" + str(fork1.qpos) + "-" + str(fork2.qpos) + ":" + str(fork1.qstrand)
+
+        path1Info = path_qinfo(path1)
+        path2Info = path_qinfo(path2)
+        
         if valid_fork_pair(fork1, fork2Flip):
             print("flipping right")
             path2.flip_strands(lengthData)
+            info = [path2Info, "LEFT", forks_rinfo(fork1, fork2Flip)]
+            logger.FileLogger().write_cols(REORIENTATION_FILE_NAME, info)
 
         elif valid_fork_pair(fork1Flip, fork2):
             print("flipping left")
             path1.flip_strands(lengthData)
-                
+            info = [path1Info, "RIGHT", forks_rinfo(fork1Flip, fork2)]
+            logger.FileLogger().write_cols(REORIENTATION_FILE_NAME, info)
+
         elif valid_fork_pair(fork1Flip, fork2Flip):
             print("flipping both")
             path1.flip_strands(lengthData)
             path2.flip_strands(lengthData)
+            info = [path1Info, "RIGHT", forks_rinfo(fork1Flip, fork2Flip)]
+            logger.FileLogger().write_cols(REORIENTATION_FILE_NAME, info)
+            info = [path2Info, "LEFT", forks_rinfo(fork1Flip, fork2Flip)]
+            logger.FileLogger().write_cols(REORIENTATION_FILE_NAME, info)
+
         else:
             print("no suitable flip found.")
+            info = [path1Info, "FAIL", path2Info]
+            logger.FileLogger().write_cols(REORIENTATION_FILE_NAME, info)
+
+
+        logger.FileLogger().flush(REORIENTATION_FILE_NAME)
 
     return(path1, path2)
 

@@ -44,14 +44,14 @@ def weld_megablock(megablock, seqData, param):
     query and reference. NNNs in q sequence are replaced using r sequence.
     A list of Paths is returned, each corresponding to a Block.
     '''
-        
+    
     megaPath = []
     replaceChunks = param.TRUST_REF_CHUNKS
     
     rid, qid = megablock.rid, megablock.qid
     rSeq, qSeq = seqData[str(rid)], seqData[str(qid)]
     
-    logger.out("Merging contigs " + str(rid) + " and " + str(qid) + ".", 1, param)
+    logger.out("Merging contigs " + str(rid) + " and " + str(qid) + ", " + str(len(megablock)) + " blocks.", 1, param)
     logger.out("----------------------------------------------------", 1, param)
             
     for block in megablock:
@@ -103,17 +103,9 @@ def join_blockpaths(paths, lengthData, param):
     Joins together a list of Paths constructed from Blocks.
     Returns a single Path.
     '''
+    
+    if len(paths) < 1: return Path()
 
-    if len(paths) < 1:
-        return Path()
-    
-    # debug: verify input is ok
-    for path in paths:
-        ok = path_helper.check_path(path)
-        if not ok:
-            print("Not ok")
-            #input()  
-    
     # fix strand orientation
     for i in range(len(paths)-1):
         paths[i], paths[i+1] = path_helper.fix_path_orientation( \

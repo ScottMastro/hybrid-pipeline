@@ -6,8 +6,7 @@ class Parameters:
         self.SUMMARY = None
         self.QUERY_FA = None
         self.REF_FA = None
-        self.ARKS = None
-        self.UNITIGS = None
+        self.REF_BED = None
         
         self.OUTPUT_DIR         =   "."     #output directory
         
@@ -30,7 +29,7 @@ class Parameters:
 
         self.BLOCK_DIST_THRESH  =   1.5     #threshold for block insert dist
         self.MBLOCK_OVERLAP     =   100     #max overlap for megablocks in bp
-        self.MIN_MBLOCK_SIZE    =   5000    #min size for megablocks in bp
+        self.MIN_MBLOCK_SIZE    =   2500    #min size for megablocks in bp
         self.MAX_MBLOCK_DIST    =   1e7     #max distance between two megablocks
 
         self.VERBOSE            =   1       #verbosity
@@ -42,7 +41,7 @@ class Parameters:
         self.arks               =   False    #run arks/linked reads step of pipeline for improved scaffolding
         self.LR_THRESHOLD       =   2      #minimum number of acceptable barcodes in common between canu contigs for scaffolding to proceed
         
-        self.TRUST_REF_CHUNKS   =   True    #trust the reference at the chunk level
+        self.TRUST_REF_CHUNKS   =   False    #trust the reference at the chunk level
 
         
     def add_report(self, report):
@@ -54,48 +53,43 @@ def get_parameters():
     """Parses command line arguments and sets default parameters.
     Returns a Parameters object."""
 
-    '''
-    defaultALN = "/home/scott/Dropbox/hybrid-pipeline/blocks/summary2.txt"
-    defaultQFA = "/media/scott/Rotom/assembly_data/CF062/OSK7121_03C_supernova.pseudohap.fasta"
-    defaultRFA = "/media/scott/Rotom/assembly_data/CF062/CF062B2D.contigs.fasta.PILON2.fasta"
-    '''
+    p = Parameters()
     
     '''
-    defaultALN = "/home/scott/Dropbox/hybrid-pipeline/blocks/summary_giab.txt"
-    defaultQFA = "/media/scott/Rotom/assembly_data/hg002/NA24385_supernova.pseudohap2.1.fasta"
-    defaultRFA = "/media/scott/Rotom/assembly_data/hg002/HG002_NA24385_son_57X.contigs.fasta.PILON2"
-    defaultUNITIGS = "/home/scott/Dropbox/hybrid-pipeline/blocks/HG002_NA24385_son_57X.unitigs.bed"
 
-    defaultALN = "/home/scott/Dropbox/hybrid-pipeline/blocks/summary_giab2.txt"
-    defaultQFA = "/media/scott/HDD/sickkids/NA24385/NA24385_supernova.pseudohap2.1.fasta"
-    defaultRFA = "/media/scott/HDD/sickkids/NA24385/HG002_NA24385_son_57X.contigs.fasta.PILON2"
-    defaultUNITIGS = "/media/scott/HDD/sickkids/NA24385/HG002_NA24385_son_57X.unitigs.bed"
-
+    prefix = "/media/scott/HDD/sickkids/CF062_19/"
+    p.SUMMARY = prefix + "summary.txt"
+    p.QUERY_FA = prefix + "OSK7121_supernova.psuedohap.10k.fasta.gz"
+    p.REF_FA = prefix + "CF062B2D.contigs.fasta" 
+    p.REF_BED =  prefix + "canu_data/CF062B2D.unitigs.bed"
+    p.OUTPUT_DIR = prefix + "out"
+    
     '''
-
-    defaultALN = "/home/scott/Documents/blocks/summary_giab2.txt"
-    defaultQFA = "/home/scott/Documents/NA24385/NA24385_supernova.pseudohap2.1.fasta"
-    defaultRFA = "/home/scott/Documents/NA24385/HG002_NA24385_son_57X.contigs.fasta.PILON2"
-    defaultUNITIGS = "/home/scott/Documents/NA24385/HG002_NA24385_son_57X.unitigs.bed"
+    
+    prefix = "/media/scott/Rotom/hybrid2/CF062_19/"
+    p.SUMMARY = prefix + "purge/summary.txt"
+    p.QUERY_FA = prefix + "OSK7121_supernova.psuedohap.10k.fasta.gz"
+    p.REF_FA = prefix + "CF062B2D.contigs.fasta" #"purge/curated.fasta"
+    p.REF_BED =  prefix + "canu_data/CF062B2D.unitigs.bed"
+    p.OUTPUT_DIR = prefix + "out"
 
     defaultPLOT_BLOCKS = None
     defaultDOT_PLOT = None
 
-    p = Parameters()
 
     parser = argparse.ArgumentParser(description="Hybrid assembly tool")
 
     #Positional
-    parser.add_argument("alignments", metavar="ALN", default=defaultALN, nargs="?", 
+    parser.add_argument("alignments", metavar="ALN", default=p.SUMMARY, nargs="?", 
                         help="Tab-separated output of BLAST aligner" )
-    parser.add_argument("qfasta", metavar="Q_FA", default=defaultQFA, nargs="?",
+    parser.add_argument("qfasta", metavar="Q_FA", default=p.QUERY_FA, nargs="?",
                         help="Query FASTA file")
-    parser.add_argument("rfasta", metavar="R_FA", default=defaultRFA, nargs="?",
+    parser.add_argument("rfasta", metavar="R_FA", default=p.REF_FA, nargs="?",
                         help="Reference FASTA file")
     
     #Optional
-    parser.add_argument("--unitigs", type=str, default=defaultUNITIGS, 
-                    help="Unitig BED file")
+    parser.add_argument("--confident", type=str, default=p.REF_BED, 
+                    help="BED file of high-confidence reference regions")
 
     parser.add_argument("--chunk_size", type=int, default=p.CHUNK_SIZE, 
                         help="Size of each chunk in base pairs")
@@ -146,7 +140,7 @@ def get_parameters():
     p.SUMMARY = args.alignments
     p.QUERY_FA = args.qfasta
     p.REF_FA = args.rfasta
-    p.UNITIGS = args.unitigs
+    p.REF_BED = args.confident
     
     p.CHUNK_SIZE = args.chunk_size
     p.CHUNK_PER_BLOCK = args.chunk_per_block

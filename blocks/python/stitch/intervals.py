@@ -82,20 +82,7 @@ class Interval:
         '''
         return self.trim(position, RIGHT, q)
 
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
 
-    
     def span(self, q=True): 
         '''Distance between the first position and last position'''
         if len(self) < 1: return 0
@@ -303,7 +290,6 @@ class Contig:
     def __len__(self): return len(self.mblocks)
     def __repr__(self):
         return str(self.mblocks) 
-
     def __str__(self):
-        return "id=" + str(self.qid)
+        return "contig id=" + str(self.id)
 

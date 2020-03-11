@@ -1,3 +1,49 @@
+import numpy as np
+
+def rbg_generator(tigId): 
+    if tigId is None: return "black"
+    np.random.seed((hash(tigId) % 2**30))
+    rands = [np.random.rand(), np.random.rand(), np.random.rand()]
+    rounded = [round(1e7*r) % 256 for r in rands]
+    rgb = ",".join([str(c) for c in rounded])
+    return rgb
+
+class FileLogger(object):
+    __instance = None
+    lines = {}
+    flushWhen = 255
+    outdir = ""
+
+    def __new__(cls, clean=False, outdir="."):
+        if FileLogger.__instance is None or clean:
+            FileLogger.__instance = object.__new__(cls)
+            FileLogger.__instance.outdir = outdir
+            FileLogger.__instance.lines = {}
+        return FileLogger.__instance
+    
+    def flush(self, file):
+        with open(self.outdir + "/" + file, "a") as writer:
+            for line in self.lines[file]:
+                writer.write(line + '\n')
+            self.lines[file] = []
+
+    def flush_all(self):
+        for file in self.lines:
+            if len(self.lines[file]) > 0:
+                self.flush(file)
+
+    def write(self, file, line):
+        if file not in self.lines:
+            self.lines[file] = [line]
+        else:
+           self.lines[file].append(line)
+           if len(self.lines[file]) >= self.flushWhen:
+               self.flush(file)
+           
+    def write_cols(self, file, cols, sep='\t'):
+        self.write(file, sep.join([str(c) for c in cols]))
+        
+
 def out(text, verboseLevel, param, wait=False):
     if param.VERBOSE >= verboseLevel:
         print(text)

@@ -3,15 +3,19 @@ sys.path.append("./analysis")
 import log.log as logger
 import parameters
 import file_handler as io
-import weld.welder as welder
+import weld.build_path as welder
 import weld.path_helper as path_helper
 import stitch.stitcher as stitcher
 import scaffold.scaffolder as scaffolder
+import excluded_regions as salvager
+import analysis.analyze_sequence as analyzer
 
+    
 def main():
 
     print("Parsing parameters...")
     param = parameters.get_parameters()
+    writer = logger.FileLogger(clean=True, outdir=param.OUTPUT_DIR)
 
     print("Reading Canu fasta...")
     refData = io.read_fasta(param.REF_FA)
@@ -34,30 +38,64 @@ def main():
     #if not io.validate_ids(rids, qids): return
     #todo: validate output files here first!
 
-    unitigs = io.parse_unitigs(param.UNITIGS)    
+    confBed = io.parse_confident_regions(param.REF_BED)    
     
     #--------------------------------------
     #--------------------------------------
     #--------------------------------------
 
-    print("Iterating over query contigs...")
-    paths, emptyIds = [], []
+    writer = logger.FileLogger(clean=True, outdir=param.OUTPUT_DIR)
 
-    for tigId in qids:
-        logger.out("Doing contig: " + tigId, 1, param)
+    try:
+        contigs = io.unpickle(param.OUTPUT_DIR + "/contigs.pickle")
+        print("Loading stitched contigs...")
+
+    except:
+        print("Stitching contigs...")
         
-        contig = stitcher.stitch(tigId, alignDict, lengthData, param, q=True)        
-        path = welder.weld(contig, seqData, lengthData, param)
+        contigs = []
+        for tigId in qids:
+            logger.out("Doing contig: " + tigId, 1, param)
+    
+            blocks = stitcher.stitch_blocks(tigId, alignDict, param)
+            mblocks = stitcher.stitch_megablocks(tigId, blocks, lengthData, param)
+            contig = stitcher.stitch_contig(tigId, mblocks, lengthData, param)
         
-        if len(path) < 1: 
-            emptyIds.append(tigId)
-        else:
-            paths.append(path)
+            if contig is not None:  
+                contigs.append(contig)
+        
+        io.pickle(contigs, param.OUTPUT_DIR + "/contigs.pickle")
+    
+    print("Welding contigs...")
+    paths, emptyIds = [], []
+    for contig in contigs:
+        megapaths = []       
+        for megablock in reversed(contig.mblocks):
+            #path = welder.weld_megablock(megablock, seqData, lengthData, param)
+            
+            blockPaths = welder.weld_megablock(megablock, seqData, param)
+            analyzer.analyze_blockpaths(blockPaths, seqData, param)
+
+            megaPath = welder.join_blockpaths(blockPaths, lengthData, param)
+            megapaths.append(megaPath)
+            
+        paths.append(megapaths)
+      
+    #emptyIds.append(tigId) if len(path) < 1 else       
+            
+    unusedQuery = salvager.get_unused_regions(paths, qids, lengthData)
+
+
+    #todo:
+    #output megapath bridges
+    #output N filling + flank seqence
+    
+
 
     paths = [ path_helper.clean_NNNs(path) for path in paths ]
     paths = [ path for path in paths if len(path) > 0 ]
 
-    paths = io.pickle(paths, "paths.pickle")
+    io.pickle(paths, "paths.pickle")
 
     '''
     paths = io.unpickle("CF062_paths.pickle")
@@ -77,7 +115,7 @@ def main():
     paths = [ path for path in paths if len(path) > 0 ]
 
     ridSet = set()
-    for path in paths: 
+    for path in paths:
         for fork in path: ridSet.add(fork.rid)
 
     print("Iterating over reference contigs...")
@@ -85,15 +123,15 @@ def main():
 
     for tigId in rids:
         if tigId not in ridSet: continue
-        logger.out("Doing contig: " + tigId, 1, param)
+        logger.out("Scaffolding with contig: " + tigId, 1, param)
 
-        paths, exclude = scaffolder.scaffold(paths, tigId, unitigs, lengthData, param)
+        paths, exclude = scaffolder.scaffold(paths, tigId, confBed, lengthData, param)
         excludeList.extend(exclude)
         print("npaths:",len(paths))
         #if stop: input()
         
     scaffolds = paths
-    io.pickle(scaffolds, "scaffolds.pickle")
+    #io.pickle(scaffolds, "scaffolds.pickle")
 
     #plt.hist([ np.log10(path.path_length()) for path in paths ])
     #plt.show()
@@ -103,6 +141,12 @@ def main():
     #--------------------------------------
     #--------------------------------------
     
+    unusedRef = salvager.get_unused_regions(paths, rids, lengthData)
+    unusedQuery = salvager.get_unused_regions(paths, qids, lengthData)
+
+        
+    
+    writer.flush_all()
     io.write_hybrid(scaffolds, seqData, param)
 
 

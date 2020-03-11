@@ -6,6 +6,21 @@ import stitch.plot_intervals as plotter
 import stitch.build_intervals as builder
 import copy
 
+OUTPUT_BLOCK_NAME = "blocks.bed"
+OUTPUT_MBLOCK_NAME = "megablocks.bed"
+
+def interval2bed(intervals, fileName):
+    
+    for interval in intervals:
+        rgb =  logger.rbg_generator(interval.rid)
+        rInfo = str(interval.rid) + ":" + str(interval.left(q=False)) + "-" + str(interval.right(q=False))
+        qInfo = [interval.qid, interval.left(q=True), interval.right(q=True), 
+                 rInfo, interval.percent_identity(), interval.get_dir(q=False,string=True),
+                interval.left(q=True), interval.right(q=True), rgb]
+        
+        logger.FileLogger().write_cols(fileName, qInfo)
+
+
 def stitch(tigId, alignDict, lengthData, param, q=True):    
     """Performs all stitching tasks: creating chunks, blocks and megablocks.
     tigId is the ID of the assembled contig to stitch.
@@ -50,14 +65,15 @@ def stitch(tigId, alignDict, lengthData, param, q=True):
         #blocks
         blocks, trash = builder.construct_blocks(chunks, param)
         if plotDir is not None: bList.extend(copy.deepcopy(blocks))
-
+        
         #megablock
         megablocks = builder.construct_megablocks(blocks, length, param)
+            
         mblockList.extend(megablocks)
         if plotDir is not None: mList.extend(copy.deepcopy(megablocks))
 
     #contig
-    contig = builder.construct_contig(mblockList, tigId, length, param)
+    contig = builder.construct_contig(mblockList, tigId, length, param)    
     
     #plot
     if len(cList) > 0 and plotDir is not None:
@@ -66,6 +82,54 @@ def stitch(tigId, alignDict, lengthData, param, q=True):
         if not q: tList = []
         intervalList=[cList, bList, mList, tList]
         plotter.plot_levels(intervalList, length, q=q, outputPath=plotDir + tigId)
+
+    return contig
+
+
+def stitch_blocks(tigId, alignDict, param):    
+    if tigId not in alignDict:
+        logger.out("Contig " + str(tigId) + " has no chunk alignments.", 1, param)
+        return []
+    
+    rows = alignDict[tigId]
+    blockList = []
+    for idx, row in rows.iterrows():
+        
+        #chunks
+        chunks = builder.construct_chunks(row, param)
+        
+        #blocks
+        blocks, trash = builder.construct_blocks(chunks, param)
+        blockList.extend(blocks)
+
+    interval2bed(blockList, OUTPUT_BLOCK_NAME)
+
+
+    return blockList
+
+
+def stitch_megablocks(tigId, blocks, lengthData, param):    
+    
+    mblockList=[]
+    length = lengthData[tigId]
+    rids = set([block.rid for block in blocks])
+    
+    for rid in rids:
+        rblocks = [block for block in blocks if block.rid == rid]
+        megablocks = builder.construct_megablocks(rblocks, length, param)
+        mblockList.extend(megablocks)
+
+    return mblockList
+
+
+def stitch_contig(tigId, mblocks, lengthData, param):    
+    
+    length = lengthData[tigId]
+    contig = builder.construct_contig(mblocks, tigId, length, param)    
+
+    if contig is not None:
+        interval2bed(contig.mblocks, OUTPUT_MBLOCK_NAME)
+
 
     return contig
 

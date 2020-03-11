@@ -46,7 +46,7 @@ def read_fasta(fasta):
     """
 
     if(fasta[-2:] == "gz"):
-        with gzip.open(fasta, "rb") as handle:
+        with gzip.open(fasta, "rt") as handle:
             records = list(SeqIO.parse(handle, "fasta"))
     else:
         records = list(SeqIO.parse(fasta, "fasta"))
@@ -65,10 +65,10 @@ def parse_alignments(csv_file):
     df = pd.read_csv(csv_file, header=None, names=colnames, sep="\t", engine="python")
     return df
     
-def parse_unitigs(unitig_file):
+def parse_confident_regions(bedFile):
     """Loads BED file containing unitigs."""
     
-    bed = BedTool(unitig_file)
+    bed = BedTool(bedFile)
     return bed
     
  
@@ -127,6 +127,32 @@ def path_to_sequence(path, seqData):
         add_seq(startFork, endFork)
     
     return (sequence, source)
+
+def write_fasta(fid, sequence, filePath):   
+    writer = open(filePath, "w+")
+    writer.write(">" + fid + "\n" + \
+             re.sub("(.{64})", "\\1\n", "".join(sequence), 0, re.DOTALL) + "\n")
+
+
+def fasta2dict(faPath, toUpper=False):
+    fastaDict = dict()
+    seqs = SeqIO.parse(open(faPath),'fasta')
+    for f in seqs:
+        fastaDict[f.id] = str(f.seq)
+        if toUpper: fastaDict[f.id] = fastaDict[f.id].upper()
+    return fastaDict
+
+def dict2fasta(faPath, fastaDict, toUpper=False):
+    
+    writer = open(faPath, "w+")
+
+    for fid in fastaDict:
+        writer.write(">" + fid + "\n" + \
+                 re.sub("(.{64})", "\\1\n", "".join(fastaDict[fid]), 0, re.DOTALL) + "\n")
+
+    writer.close()
+    return faPath
+
 
 def write_hybrid(scaffolds, seqData, param):
     """

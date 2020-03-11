@@ -1,0 +1,141 @@
+import sys
+sys.path.append("./analysis")
+import log.log as logger
+import parameters
+import file_handler as io
+import weld.welder as welder
+import weld.path_helper as path_helper
+import stitch.stitcher as stitcher
+import scaffold.scaffolder as scaffolder
+
+import external_tools as tools
+import paf_helper as paf
+
+def main():
+
+    print("Parsing parameters...")
+    param = parameters.get_parameters()
+
+    print("Reading curated Canu fasta...")
+    refData = io.read_fasta(param.CURATED_REF_FA)
+    print("Reading curated Supernova fasta...")
+    queryData = io.read_fasta(param.CURATED_QUERY_FA)
+    
+    seqData = dict()
+    seqData.update(refData)
+    seqData.update(queryData)
+    lengthData = {x : len(seqData[x]) for x in seqData.keys()}
+    
+    rids, qids = list(refData.keys()), list(queryData.keys())
+    rids.sort(key=lambda x: -lengthData[x])
+    qids.sort(key=lambda x: -lengthData[x])
+
+    
+    
+    print("Reading alignment data...")
+    aligndf = paf.parse_paf(param.CURATED_ALIGN)
+    stitcher.stitch2(qids, aligndf, lengthData, param)
+
+    #if not io.validate_ids(rids, qids): return
+    #todo: validate output files here first!
+
+    unitigs = io.parse_unitigs(param.UNITIGS)    
+    
+    #--------------------------------------
+    #--------------------------------------
+    #--------------------------------------
+
+    print("Iterating over query contigs...")
+    paths, emptyIds = [], []
+
+    for tigId in qids:
+        logger.out("Doing contig: " + tigId, 1, param)
+        
+        contig = stitcher.stitch(tigId, alignDict, lengthData, param, q=True)        
+        path = welder.weld(contig, seqData, lengthData, param)
+        
+        if len(path) < 1: 
+            emptyIds.append(tigId)
+        else:
+            paths.append(path)
+
+    paths = [ path_helper.clean_NNNs(path) for path in paths ]
+    paths = [ path for path in paths if len(path) > 0 ]
+
+    paths = io.pickle(paths, "paths.pickle")
+
+    '''
+    paths = io.unpickle("CF062_paths.pickle")
+    paths = io.unpickle("hg002_paths10.pickle")
+    paths = io.unpickle("hg002_scaffolds.pickle")
+
+    '''
+
+    #--------------------------------------
+    #--------------------------------------
+    #--------------------------------------
+    
+    #paths = io.unpickle("hg002_paths10.pickle")
+    #paths = io.unpickle("hg002_scaffolds.pickle")
+
+    paths = [ path_helper.clean_NNNs(path) for path in paths ]
+    paths = [ path for path in paths if len(path) > 0 ]
+
+    ridSet = set()
+    for path in paths: 
+        for fork in path: ridSet.add(fork.rid)
+
+    print("Iterating over reference contigs...")
+    scaffolds, excludeList = [], []
+
+    for tigId in rids:
+        if tigId not in ridSet: continue
+        logger.out("Doing contig: " + tigId, 1, param)
+
+        paths, exclude = scaffolder.scaffold(paths, tigId, unitigs, lengthData, param)
+        excludeList.extend(exclude)
+        print("npaths:",len(paths))
+        #if stop: input()
+        
+    scaffolds = paths
+    io.pickle(scaffolds, "scaffolds.pickle")
+
+    #plt.hist([ np.log10(path.path_length()) for path in paths ])
+    #plt.show()
+    #print(sum([ path.path_length() for path in paths ]))
+
+    #--------------------------------------
+    #--------------------------------------
+    #--------------------------------------
+    
+    io.write_hybrid(scaffolds, seqData, param)
+
+
+#debugging help
+def p(tigId, pos, rc=False, dist=10000, length=2000):
+    print("length = " + str(lengthData[tigId]))
+    print("before:\n")
+    if not rc:
+        print(seqData[tigId][pos-dist-int(length/2):pos-dist+int(length/2)])
+    else:
+        print(seqData[tigId][lengthData[tigId]-pos-dist-int(length/2):lengthData[tigId]-pos-dist+int(length/2)])
+
+    print("after:\n")
+    if not rc:
+        print(seqData[tigId][pos+dist-int(length/2):pos+dist+int(length/2)])
+    else:
+        print(seqData[tigId][lengthData[tigId]-pos+dist-int(length/2):lengthData[tigId]-pos+dist+int(length/2)])
+
+def pp(tigId, pos, rc=False, length=2000):
+    print("length = " + str(lengthData[tigId]))
+    if not rc:
+        print(seqData[tigId][pos-int(length/2):pos+int(length/2)])
+    else:
+        print(seqData[tigId][lengthData[tigId]-pos-int(length/2):lengthData[tigId]-pos+int(length/2)])
+
+
+
+if __name__== "__main__":
+  main()
+  print("done")
+  exit()
