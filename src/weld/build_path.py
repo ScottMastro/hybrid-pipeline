@@ -2,7 +2,7 @@ import sys
 sys.path.append("..")
 import log as logger
 
-from weld.paths import Path
+from structures.path import Path
 import weld.path_helper as path_helper
 import weld.aligner as aligner
 import weld.N_filler as nfill

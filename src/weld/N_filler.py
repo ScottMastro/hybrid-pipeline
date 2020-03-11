@@ -2,7 +2,7 @@ import sys
 sys.path.append('..')
 import log as logger
 import re
-from weld.paths import Path
+from structures.path import Path
 import weld.aligner as aligner
 
 OUTPUT_FILE_NAME = "gap_fill.bed"

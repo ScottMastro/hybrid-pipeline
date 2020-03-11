@@ -1,20 +1,19 @@
 #!/usr/bin/env bash
 
-dir=$1
+DIR=$1
 
 echo "combining alignment files"
 
-BLAST_TABULAR_OUTPUT=$dir/blastn.vs_canu.txt
+BLAST_TABULAR_OUTPUT=$DIR/blastn.vs_ref.txt
 
-cat $dir/alignments/*.out > $BLAST_TABULAR_OUTPUT
-#rm $dir/alignments/*.out
+cat $DIR/alignments/*.out > $BLAST_TABULAR_OUTPUT
+#rm $DIR/alignments/*.out
 
 # all options required
-BLAST_TABULAR_OUTPUT=$dir/blastn.vs_canu.txt
 
 ID=95				# filter: minimum identity required 
 COV=40				# filter: minimum percentage of query coverage required
-PREFIX=$dir/nova_vs_canu	# prefix for output file (eg: output_dir/blast.query_vs_reference)
+PREFIX=$DIR/query_vs_ref	# prefix for output file (eg: output_dir/blast.query_vs_ref)
 
 #echo "filter blast results"
 cat $BLAST_TABULAR_OUTPUT | perl -naF'\t' -e 'BEGIN{ $id='$ID'; $cov='$COV' } $p=(($F[7]-$F[6]+1)/$F[12])*100; if($F[2]>=$id && $p>=$cov){ chomp($F[1]); @s=split(":",$F[0]); $n=$s[3]; $n=~s/(exon|part)//g; printf("$s[1]\t$s[2]\t$n\t$F[1]\t$F[8]\t$F[9]\t$F[12]\t$F[13]\t%.2f\t$_",$p); }' > $PREFIX.id$ID.cov$COV.filter.txt

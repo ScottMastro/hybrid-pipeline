@@ -3,7 +3,7 @@ sys.path.append('../')
 import log as logger
 
 import weld.aligner_helper as helper
-from weld.paths import Fork
+from structures.fork import Fork
 
 #---- ssw aligner required for fast alignments ----
 import ssw

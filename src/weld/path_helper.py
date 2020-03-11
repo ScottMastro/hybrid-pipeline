@@ -1,5 +1,9 @@
-from weld.paths import Path
-from weld.paths import get_Nfork
+import sys
+sys.path.append("..")
+
+
+from structures.path import Path
+from structures.fork import get_Nfork
 import log as logger
 
 REORIENTATION_FILE_NAME = "inversions.txt"

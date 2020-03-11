@@ -1,6 +1,7 @@
-from regions import SimpleRegion
-from regions import region_difference
-from weld.paths import Fork
+from structures.region import SimpleRegion
+from structures.region import region_difference
+
+from structures.fork import Fork
 import copy
 
 def parse_block_map(fileName, param):

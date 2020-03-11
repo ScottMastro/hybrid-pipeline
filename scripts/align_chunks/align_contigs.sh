@@ -1,10 +1,9 @@
-canu=$1
-supernova=$2
+REF=$1
+QUERY=$2
+OUT=$3
 
-out=$3
-: ${out:=./out}
-
-mkdir -p $out
+: ${OUT:=./out}
+mkdir -p $OUT
 
 #parameters
 #---------------------------
@@ -13,26 +12,26 @@ threads=8
 step=1500  #20000
 blast_mem=32  #gb
 walltime=7:59:00
-jobout=$out/jobout
+jobout=$OUT/jobout
 mkdir -p $jobout
 
-db_dir=$out/blast-db
-db=canu_db
+db_dir=$OUT/blast-db
+db=ref_db
 
 
-#make blast database of canu
+#make blast database of REF
 #---------------------------
 module load blast+/2.7.1
 mkdir -p $db_dir
-makeblastdb -in $canu -dbtype nucl -out $db_dir/$db
+makeblastdb -in $REF -dbtype nucl -out $db_dir/$db
 
 
-#split up supernova
+#split up QUERY
 #---------------------------
 LEN=$split_size
-IN=$supernova
-mkdir -p $out/split
-split_file=$out/split/supernova.${split_size}bp.fa
+IN=$QUERY
+mkdir -p $OUT/split
+split_file=$OUT/split/query.${split_size}bp.fa
 
 cat $IN | perl -nae 'if($_=~/^>/){ if($.!=1){ print "\n"; } print $_; } else{ chomp; print $_; }' | \
 perl -nae 'BEGIN{ $split='$LEN'; } chomp; if($_=~/^>/){ @id=@F; $f=$_; $i=1; $n=0; } else{ if($n==0){ $n=length($_)/1000; @num=split(/\./, $n); if($num[1] ne "00" || $num ne ""){ $n=$num[0]+1; } } for($l=0; $l<=length($_); $l+=$split){ print ">predicted:".substr($id[0],1).":$n:part$i\n".substr($_, $l, $split)."\n"; $i++; } }' > $split_file
@@ -54,11 +53,11 @@ do
     to=$(($max<$to?$max:$to))
     echo $i to $to
  
-    echo dir=${out},db=${db_dir}/$db,in=${split_file},from=${i},to=${to},threads=${threads}
-    if [ ! -e ${out}/alignments/blastn.vs_canu${i}.${to}.out ]
+    echo dir=${OUT},db=${db_dir}/$db,in=${split_file},from=${i},to=${to},threads=${threads}
+    if [ ! -e ${OUT}/alignments/blastn.vs_ref${i}.${to}.out ]
     then
        #echo "file not found."
-       qsub -v dir=${out},db=${db_dir}/$db,in=${split_file},from=${i},to=${to},threads=${threads} \
+       qsub -v dir=${OUT},db=${db_dir}/$db,in=${split_file},from=${i},to=${to},threads=${threads} \
 	-l nodes=1:ppn=$threads -l mem=${blast_mem}g -l vmem=${blast_mem}g \
         -l walltime=$walltime -o $jobout -e $jobout -d `pwd` \
         -N blast_${i}_${to} sh_runblast

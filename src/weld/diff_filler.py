@@ -2,8 +2,8 @@ import sys
 sys.path.append('..')
 import log as logger
 
-from weld.paths import Path
-from weld.paths import Fork
+from structures.path import Path
+from structures.fork import Fork
 import weld.aligner as aligner
 
 

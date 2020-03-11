@@ -1,5 +1,5 @@
 import external_tools as tools
-import regions as rgn
+import structures.region as rgn
 import variants as var
 import os.path
 import re
