@@ -1,12 +1,15 @@
 import sys
 sys.path.append("..")
-import log as logger
+import utils.log as logger
 
 from structures.path import Path
-import weld.path_helper as path_helper
+import structures.path_operations as pathops
+
 import weld.aligner as aligner
-import weld.N_filler as nfill
+import weld.gap_filler as nfill
 import weld.diff_filler as dfill
+
+REORIENTATION_FILE_NAME = "inversions.txt"
 
 def anchor_block_ends(qSeq, rSeq, block, param):
     '''
@@ -24,19 +27,18 @@ def anchor_block_ends(qSeq, rSeq, block, param):
     if startFork is not None:
         startFork.switch_query()
     else: 
-        logger.out("Failure in aligning start of block. Block will be skipped. " + \
-                "Reference=" + rid + " Query=" + qid, 1, param)
+        logger.Logger().out("Failure in aligning start of block. Block will be skipped. " + \
+                "Reference=" + rid + " Query=" + qid, 1)
         #todo: retry alignment?
 
     endFork = aligner.align_left(qid, rid, qSeq, rSeq, qend, rend, param, alignBuffer, rdir)
     if endFork is not None: endFork.switch_reference()
     else:
-        logger.out("Failure in aligning end of block. Block will be skipped. " + \
-                "Reference=" + rid + " Query=" + qid, 1, param)        
+        logger.Logger().out("Failure in aligning end of block. Block will be skipped. " + \
+                "Reference=" + rid + " Query=" + qid, 1)
         #todo: retry alignment?
 
     return (startFork, endFork)
-
 
 def weld_megablock(megablock, seqData, param):
     '''
@@ -51,8 +53,9 @@ def weld_megablock(megablock, seqData, param):
     rid, qid = megablock.rid, megablock.qid
     rSeq, qSeq = seqData[str(rid)], seqData[str(qid)]
     
-    logger.out("Merging contigs " + str(rid) + " and " + str(qid) + ", " + str(len(megablock)) + " blocks.", 1, param)
-    logger.out("----------------------------------------------------", 1, param)
+    message = "Merging contigs " + str(rid) + " and " + str(qid) + ", " + str(len(megablock)) + " blocks."
+    message = message + "\n----------------------------------------------------"
+    logger.Logger().out(message, 1)
             
     for block in megablock:
         
@@ -60,20 +63,20 @@ def weld_megablock(megablock, seqData, param):
         startFork, endFork = anchor_block_ends(qSeq, rSeq, block, param)
 
         if startFork is not None and endFork is not None and \
-            path_helper.valid_fork_pair(startFork, endFork):                        
-                logger.out("Successfully anchored block.", 2, param)
+            pathops.consistent_forks(startFork, endFork):                        
+                logger.Logger().out("Successfully anchored block.", 2)
         else:        
-            logger.out("Could not anchor block, skipping.", 1, param)
+            logger.Logger().out("Could not anchor block, skipping.", 1)
             continue
 
         # find and fill NNNs
         blockPath = nfill.fill_NNNs(qSeq, rSeq, block, param)
         if replaceChunks:
             diffPath = dfill.fill_diffs(qSeq, rSeq, block, param)
-            blockPath = path_helper.interleave_paths(blockPath, diffPath)
+            blockPath = pathops.interleave_paths(blockPath, diffPath, q=True, preferRef=True)
             
         # combine overlapping NNN filled regions
-        blockPath = path_helper.clean_overlapping_forks(blockPath, param)
+        blockPath = pathops.clean_overlapping_forks(blockPath, param, q=True)
         
         # merge block ends with NNN path
         if len(blockPath) < 1:
@@ -98,6 +101,59 @@ def weld_megablock(megablock, seqData, param):
         
     return megaPath
 
+def fix_path_orientation(path1, path2, lengthData, param, trimEnds=False):
+    '''
+    Takes in a pair of paths and compares strandedness of the last fork of path1
+    and the first fork of path 2. Flips one or both of the paths to correct strandedness, 
+    if necessary. Setting trimEnds=True will evaluate the second last fork of path1
+    and second fork in path2 instead. Returns the corrected paths.
+    '''
+    index = 1 if trimEnds else 0
+    
+    fork1, fork2 = path1.tail(index), path2.head(index)
+    fork1Flip = path1.head(index).flip_strands(lengthData, makeCopy=True)
+    fork2Flip = path2.tail(index).flip_strands(lengthData, makeCopy=True)
+
+    if not pathops.consistent_forks(fork1, fork2):
+
+        message = "\n".join(["Attempting to flip path...", "------",
+                             str(fork1), str(fork2), "------"])
+        logger.Logger().out(message, 2)
+
+        def path_qinfo(path):
+            return str(path[0].qid) + ":" + str(path[0].qpos) + "-" + str(path[-1].qpos) + ":" + str(path[0].qstrand)
+        def forks_rinfo(fork1, fork2):
+            return str(fork1.rid) + ":" + str(fork1.qpos) + "-" + str(fork2.qpos) + ":" + str(fork1.qstrand)
+
+        path1Info = path_qinfo(path1)
+        path2Info = path_qinfo(path2)
+        
+        if pathops.consistent_forks(fork1, fork2Flip):
+            logger.Logger().out("Flipping right path", 2)
+            path2.flip_strands(lengthData)
+            info = [path2Info, "LEFT", forks_rinfo(fork1, fork2Flip)]
+
+        elif pathops.consistent_forks(fork1Flip, fork2):
+            logger.Logger().out("Flipping left path", 2)
+            path1.flip_strands(lengthData)
+            info = [path1Info, "RIGHT", forks_rinfo(fork1Flip, fork2)]
+
+        elif pathops.consistent_forks(fork1Flip, fork2Flip):
+            logger.Logger().out("Flipping both paths", 2)
+            path1.flip_strands(lengthData)
+            path2.flip_strands(lengthData)
+            info = [path1Info, "RIGHT", forks_rinfo(fork1Flip, fork2Flip)]
+            logger.FileLogger().write_cols(REORIENTATION_FILE_NAME, info)
+            info = [path2Info, "LEFT", forks_rinfo(fork1Flip, fork2Flip)]
+        else:
+            logger.Logger().out("No suitable flip found", 2)
+            info = [path1Info, "FAIL", path2Info]
+
+        logger.FileLogger().write_cols(REORIENTATION_FILE_NAME, info)
+        
+    logger.FileLogger().flush(REORIENTATION_FILE_NAME)
+    return(path1, path2)
+
 def join_blockpaths(paths, lengthData, param):
     '''
     Joins together a list of Paths constructed from Blocks.
@@ -108,19 +164,19 @@ def join_blockpaths(paths, lengthData, param):
 
     # fix strand orientation
     for i in range(len(paths)-1):
-        paths[i], paths[i+1] = path_helper.fix_path_orientation( \
+        paths[i], paths[i+1] = fix_path_orientation( \
              paths[i], paths[i+1], lengthData, param, False)
     
     # join paths
     path = Path()
     for p in paths: path.add_path(p)
-
     # add Nforks if necessary
-    path = path_helper.add_Nforks(path, lengthData)   
+    path = pathops.make_ends_consistent(path, lengthData, q=True)
+    path = pathops.make_consistent(path)   
 
     return path
         
-def join_megablockpaths(paths, lengthData, param):
+def join_mblockpaths(paths, lengthData, param):
     '''
     Joins together a list of Paths constructed from Megablocks.
     Returns a single Path.
@@ -137,15 +193,14 @@ def join_megablockpaths(paths, lengthData, param):
         return Path()
     
     # debug: verify input is ok
+    #todo: does this happen?
     for path in paths:
-        ok = path_helper.check_path(path)
-        if not ok:
-            print("Not ok")
-            #input()  
+        if not pathops.check_path_consistency(path):
+            logger.Logger().out("Warning: malformed path detected", 1)
     
     # fix strand orientation
     for i in range(len(paths)-1):
-        paths[i], paths[i+1] = path_helper.fix_path_orientation( \
+        paths[i], paths[i+1] = fix_path_orientation( \
              paths[i], paths[i+1], lengthData, param, True)
     
     # join paths
@@ -164,6 +219,10 @@ def join_megablockpaths(paths, lengthData, param):
     if not lastFork.is_Nfork(): path.add_fork(lastFork)
 
     # add Nforks if necessary
-    path = path_helper.add_Nforks(path, lengthData)   
+    path = pathops.make_ends_consistent(path, lengthData, q=True)
+    path = pathops.make_consistent(path)   
+
+    path = pathops.clean_Nforks(path)
+    path = pathops.clean_Nforks_if_consistent(path, q=False)
 
     return path

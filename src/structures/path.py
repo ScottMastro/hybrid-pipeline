@@ -89,6 +89,17 @@ class Path:
             
         return pathSum
 
+    def get_tig_ids(self, q=None):
+       #True for query, False for ref, None for both                
+        ids = set()
+        for fork in self.path:
+            if q is None or not q:
+                ids.add(fork.rid)
+            if q is None or q:
+                ids.add(fork.qid)
+    
+        return ids        
+
     def __eq__(self, other): 
         if not isinstance(other, Path): return False
         if not len(other.path) == len(self.path): return False
@@ -113,4 +124,3 @@ def get_Npath():
     p = Path()
     p.add_fork(FORK.get_Nfork())
     return p
-    

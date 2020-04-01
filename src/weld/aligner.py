@@ -1,6 +1,6 @@
 import sys
 sys.path.append('../')
-import log as logger
+import utils.log as logger
 
 import weld.aligner_helper as helper
 from structures.fork import Fork
@@ -80,18 +80,18 @@ def cut_alignment(qSeq, rSeq, alignment, side, param, buffer=50, minPercent=90, 
         else:
             cutPos, terminate = helper.get_cut_position(alignment, attempt, side, buffer)
         attempt += 1
-        logger.out("Attempting to find cut site at position: " + str(cutPos), 5, param)
+        logger.Logger().out("Attempting to find cut site at position: " + str(cutPos), 5)
 
 
         #check the quality of the alignment in this region
         idPass = helper.check_identity(alignment, cutPos, side, buffer, minPercent)
         if not idPass: 
-            logger.out("Percent identity around cut region too low.", 5, param)
+            logger.Logger().out("Percent identity around cut region too low.", 5)
             continue
 
         cutPos = helper.ajdust_cut_pos(alignment, cutPos, side, buffer, smallBuffer)
         if cutPos is None: 
-            logger.out("Could not find high-entropy exact match for cut site.", 5, param) 
+            logger.Logger().out("Could not find high-entropy exact match for cut site.", 5) 
             continue
         
     
@@ -182,15 +182,15 @@ def align(qSeq, rSeq, qpos, rpos, side, param, alignBuffer=200, hint=None):
             cut = cut_alignment(qSeq, rSeq, alignment, side, param)
                         
         if cut is not None:
-            logger.out("Alignment of " + sideStr + " side successful.\n" + \
-                       "Cut point found, q:" + str(cut[0]) + " / r:" + str(cut[1]), 4, param, wait=True)
+            logger.Logger().out("Alignment of " + sideStr + " side successful.\n" + \
+                       "Cut point found, q:" + str(cut[0]) + " / r:" + str(cut[1]), 4, wait=True)
             return (cut[0], alignment.qstrand, cut[1], alignment.rstrand)
 
         retryCount = retryCount + 1
         extension=max(alignBuffer, extension*2)
-        logger.out("Cut site not identified. Trying " + sideStr + " again with extension = " + str(extension), 4, param, wait=True)
+        logger.Logger().out("Cut site not identified. Trying " + sideStr + " again with extension = " + str(extension), 4, wait=True)
         
-    logger.out("Could not align (" + sideStr + " failure).", 1, param)
+    logger.Logger().out("Could not align (" + sideStr + " failure).", 1)
 
     return None
     

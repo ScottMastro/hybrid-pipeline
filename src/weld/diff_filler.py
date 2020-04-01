@@ -1,6 +1,5 @@
 import sys
 sys.path.append('..')
-import log as logger
 
 from structures.path import Path
 from structures.fork import Fork

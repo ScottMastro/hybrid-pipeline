@@ -1,5 +1,5 @@
 import external_tools as tools
-import structures.region as rgn
+from structures.region import SimpleRegion
 import variants as var
 import os.path
 import re
@@ -57,7 +57,7 @@ def contig_fasta(tigName, seqData, param):
     return fastaName
 
 def contig_region(tigName, lengthData, param):
-    return rgn.SimpleRegion(tigName, 0, lengthData[tigName]-1, lengthData)
+    return SimpleRegion(tigName, 0, lengthData[tigName]-1, lengthData)
 
 def get_fasta_len(faFile, fid=None):   
     faDict = tools.fasta2dict(faFile)

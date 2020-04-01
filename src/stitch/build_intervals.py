@@ -1,6 +1,5 @@
-from stitch.intervals import Chunk
-from stitch.intervals import construct_interval
-from stitch.intervals import Contig
+from structures.interval import Chunk
+from structures.interval import construct_interval
 
 PASS, SKIP, FAIL = 0, 1, 2
 
@@ -42,8 +41,8 @@ def trim_blocks(blocks, param, q=True):
 
         if startPos > endPos:
 
-            blockCov = blocks[i].coverage_between(startPos, endPos, q)
-            nextBlockCov = blocks[i+1].coverage_between(startPos, endPos, q)
+            blockCov = blocks[i].similarity_between(startPos, endPos, q)
+            nextBlockCov = blocks[i+1].similarity_between(startPos, endPos, q)
                         
             #left block is better
             if(blockCov > nextBlockCov):
@@ -243,8 +242,8 @@ def trim_megablock_pair(mblockList, param):
             
         if pos2 + overlapTolerance < pos1:
             
-            cov1 = megablock.coverage_between(pos1, pos2, q=True)
-            cov2 = nextMegablock.coverage_between(pos1, pos2, q=True)
+            cov1 = megablock.similarity_between(pos1, pos2, q=True)
+            cov2 = nextMegablock.similarity_between(pos1, pos2, q=True)
                 
             if cov1 > cov2:
                 nextMegablock.trim_left(pos1, q=True)
@@ -286,8 +285,8 @@ def valid_megablock_pair(megablock, nextMegablock, param):
 
 def construct_contig(mblockList, tigId, length, param, q=True):
     ''' 
-    Takes a list of megablocks and connects them into a Contig.
-    A single Contig object is returned.
+    Takes a list of megablocks and connects them into a contig.
+    A contig (list of megablocks) is returned.
     '''
 
     if len(mblockList) < 1: return None
@@ -300,7 +299,7 @@ def construct_contig(mblockList, tigId, length, param, q=True):
         if not megablock.is_consistent(q=False):
             megablock.components = megablock.components[::-1]
 
-    contigBlocks = []
+    contig = []
     megablock = mblockList.pop()
         
     while len(mblockList) > 0:
@@ -308,21 +307,19 @@ def construct_contig(mblockList, tigId, length, param, q=True):
         nextMegablock = mblockList.pop()
         result = valid_megablock_pair(megablock, nextMegablock, param)
         if result == FAIL:
-            contigBlocks.append(megablock)
+            contig.append(megablock)
         elif result == PASS:
             nextMegablock.components = megablock.components + nextMegablock.components
 
         megablock = nextMegablock
                             
-    contigBlocks.append(megablock)
-        
+    contig.append(megablock)
+
     #sort blocks by reference position
-    for megablock in contigBlocks:
+    for megablock in contig:
         megablock.components.sort(key=lambda block: block.left(q=False))
         #if more than 2 blocks, we want to respect the order of the query
         if not megablock.is_consistent(q=False):
             megablock.components = megablock.components[::-1]
-
-    contig = Contig(tigId, length, contigBlocks)
 
     return contig

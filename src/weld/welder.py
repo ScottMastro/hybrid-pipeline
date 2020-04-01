@@ -1,63 +1,63 @@
+import sys
+sys.path.append("..")
+import utils.log as logger
+
 import weld.build_path as builder
-import weld.path_helper as path_helper
-from weld.paths import Path
- 
+
+# LOGGING HELPERS
+# -----------------
+
+def write_path(pid, megaPath, terminatingForks, scaffoldForks, fileName, lengthData):
+    for i,fork in enumerate(megaPath[:-1]):
+        chrPos = str(fork.after_id()) + ":" + \
+                 str(fork.after_pos_norm(lengthData)) + "-" + \
+                 str(megaPath[i+1].before_pos_norm(lengthData))
+        strand = fork.after_strand()
+        if strand > 0: strand = "+" 
+        elif strand < 0: strand = "-"
+        regionType = "gap" if fork.is_switch_reference() else ""
+        if fork in terminatingForks:
+            regionType = "megagap"
+        if fork in scaffoldForks:
+            regionType = "scaffold"
+        info = [pid, chrPos, strand, regionType]
+        logger.FileLogger().write_cols(fileName, info)
+
+OUTPUT_PATH_NAME = "paths.txt"
+pathId = 1 
+
+# -----------------
+
 def weld(contig, seqData, lengthData, param):
     '''
-    Welds together a Contig into a Path. Blocks in Megablocks have their ends
+    Welds together a contig into a Path. Blocks in megablocks have their ends
     anchored between query and reference. NNNs in query sequence are replaced 
     using reference sequence. A single Path is returned.
     '''
-    if contig is None: return Path()
-    
-    plotDir = param.DOT_PLOT
-    contigPaths = []
-      
-    for megablock in reversed(contig.mblocks):
+    if contig is None or len(contig) == 0 : return None
+
+    pathPrefix = "path"
+    global pathId
+
+    megaPaths = []
+    terminatingForks = []
+    for megablock in reversed(contig):
+        #path = welder.weld_megablock(megablock, seqData, lengthData, param)
+        
         blockPaths = builder.weld_megablock(megablock, seqData, param)
-        if plotDir is not None: 
-            import weld.dotplot as dotplot
-            dotplot.gaps_dotplot(blockPaths, seqData, lengthData, plotDir)
+        terminatingForks.extend([path[-1] for path in blockPaths])
         
         megaPath = builder.join_blockpaths(blockPaths, lengthData, param)
-        
-        if megaPath is not None and len(megaPath) > 0:
-            contigPaths.append(megaPath)
-     
-    path = builder.join_megablockpaths(contigPaths, lengthData, param)
-        
-    ok = path_helper.check_path(path)
-    
-    if not ok:
-        print("Not ok")
-        input()
-        
-    return path
+        megaPaths.append(megaPath)
 
-def weld_megablock(megablock, seqData, lengthData, param):
-    '''
-    Blocks in Megablocks have their ends anchored between query and reference. 
-    NNNs in query sequence are replaced using reference sequence.
-    A single Path is returned.
-    '''
+    scaffoldForks = [mpath[-2] for mpath in megaPaths[:-1]]
+    path = builder.join_mblockpaths(megaPaths, lengthData, param)
     
-    #blockPaths is one path per block. Each path should be consistent within itself.
+    if len(path) < 1: return None
     
-    ok = path_helper.check_path(megaPath)
-    
-    if not ok:
-        print("Not ok")
-        input()        
-        
-    return megaPath
-
-def weld_contig(megaPaths, seqData, lengthData, param):    
-    path = builder.join_megablockpaths(megaPaths, lengthData, param)
-        
-    ok = path_helper.check_path(path)
-    
-    if not ok:
-        print("Not ok")
-        input()
-        
+    pid = pathPrefix + str(pathId)
+    path.set_path_id(pid)
+    write_path(pid, path, terminatingForks, scaffoldForks, OUTPUT_PATH_NAME, lengthData)
+    pathId += 1
+      
     return path

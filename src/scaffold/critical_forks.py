@@ -2,8 +2,6 @@ from pybedtools import Interval
 
 LEFT, RIGHT ="l", "r"
 class CriticalForks:
-    '''
-    '''
     
     def __init__(self, minFork, maxFork, path, tigId, lengthData, q=False): 
         self.minFork = minFork
@@ -36,8 +34,8 @@ class CriticalForks:
         return Interval(self.tigId, self.maxPos, other.minPos)
     
     def dist(self, other):
-        a1, a2 = self.minPos, self.maxPos
-        b1, b2 = other.minPos,other.maxPos
+        a1, a2 = self.minPos,  self.maxPos
+        b1, b2 = other.minPos, other.maxPos
         
         return max(0, b1 - a2)
 
