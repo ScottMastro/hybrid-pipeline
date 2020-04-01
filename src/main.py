@@ -7,14 +7,13 @@ import stitch.stitcher as stitcher
 import weld.welder as welder
 import scaffold.scaffolder as scaffolder
 
-
 def main():
 
     #--------------------------------------
     # READ IN DATA
     #--------------------------------------
 
-    param = parameters.get_parameters()
+    param = parameters.get_parameters_hybrid()
 
     logger.FileLogger(clean=True, outdir=param.OUTPUT_DIR)
     logger.Logger(level=param.VERBOSE, wait=param.WAIT)

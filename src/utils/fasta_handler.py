@@ -8,7 +8,6 @@ csv.field_size_limit(999999999)
 rcDict = {'A':'T', 'C':'G', 'G':'C', 'T':'A', 'a':'C', 'c':'G', 'g':'C', 't':'A', 'N':'N', 'n':'N'} 
 def reverse_complement(seq): return ''.join([rcDict[x] for x in seq[::-1]])
 
-
 def read_fasta(fasta, toUpper=False):
     """Loads fasta (or gzipped fasta) file into memory with SeqIO.
     Returns dictionary of fasta ID to sequence characters.
@@ -26,7 +25,12 @@ def read_fasta(fasta, toUpper=False):
     faDict = dict(zip([str(r.id) for r in records], [get_str(r.seq) for r in records]))
     return faDict
 
-def dict2fasta(faPath, fastaDict, toUpper=False):
+#def write_fasta(fid, sequence, filePath):   
+#    writer = open(filePath, "w+")
+#    writer.write(">" + fid + "\n" + \
+#             re.sub("(.{64})", "\\1\n", "".join(sequence), 0, re.DOTALL) + "\n")
+
+def write_fasta(faPath, fastaDict, toUpper=False):
     """Takes a directory path and dictionary of id->sequence.
     Writes a FASTA file from dictionary sequence.
     """
@@ -42,8 +46,39 @@ def dict2fasta(faPath, fastaDict, toUpper=False):
 
     writer.close()
     return faPath
-  
- 
+
+def get_fasta_len(faFile, fid=None):
+    """Gets the sequence length of a FASTA sequence with id fid.
+    Returns the first sequence length of fid is None.
+    """
+    faDict = read_fasta(faFile)
+    
+    if fid is None:
+        fid = list(faDict.keys())[0]
+    
+    return len(faDict[fid])
+
+def get_first_id(faFile):
+    """Returns a string of the first id in the FASTA file.
+    """
+
+    faDict = read_fasta(faFile)
+    fid = list(faDict.keys())[0]
+    return fid
+'''
+def get_fasta_seq(faFile, region=None):   
+    """Gets the sequence of a FASTA sequence with id fid.
+    Returns the first sequence length of fid is None.
+    """
+    faDict = tools.fasta2dict(faFile)
+    
+    if region is None:
+        fid = list(faDict.keys())[0]
+        return faDict[fid]
+
+    fid = region.chrom
+    return faDict[fid][region.start:region.end]
+'''
 
 def path_to_sequence(path, seqData):
     """
@@ -97,13 +132,6 @@ def path_to_sequence(path, seqData):
         add_seq(startFork, endFork)
     
     return (sequence, source)
-
-
-def write_fasta(fid, sequence, filePath):   
-    writer = open(filePath, "w+")
-    writer.write(">" + fid + "\n" + \
-             re.sub("(.{64})", "\\1\n", "".join(sequence), 0, re.DOTALL) + "\n")
-
 
 def write_hybrid(scaffolds, seqData, param):
     """

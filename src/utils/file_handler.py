@@ -1,5 +1,5 @@
 from pybedtools import BedTool
-
+import shutil
 import os
 import re
 import pickle as pkl
@@ -7,6 +7,40 @@ import pandas as pd
 
 import csv
 csv.field_size_limit(999999999)
+
+def copy_file(file, newFile):
+    shutil.copyfile(file, newFile)
+    return newFile
+
+def move_file(file, newFile):
+    shutil.move(file, newFile)
+    return newFile
+
+def rename_file(file, newFile):
+    os.rename(file, newFile)
+    return newFile
+
+def make_dir(file, directory):
+    if not os.path.exists(directory):
+        os.mkdir(directory)
+    return directory
+
+def delete_file(file, deleteDirTree=False):
+    if os.path.isfile(file):
+        os.remove(file)
+    if os.path.isfile(file + ".bai"):
+        os.remove(file + ".bai")
+    if os.path.isfile(file + ".fai"):
+        os.remove(file + ".fai")
+    if os.path.isfile(file + ".tbi"):
+        os.remove(file + ".tbi")
+
+    if os.path.isdir(file):
+        try:
+            os.rmdir(file)
+        except:
+            if deleteDirTree: shutil.rmtree(file)
+
 
 def parse_alignments(csv_file):
     """Loads file containing BLAST alignments."""

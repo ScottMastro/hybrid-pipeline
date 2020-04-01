@@ -1,21 +1,22 @@
 import argparse
 
 class Parameters:
+    #default parameters established here
     def __init__(self):
         
-        self.SUMMARY = None
-        self.QUERY_FA = None
-        self.REF_FA = None
-        self.REF_BED = None
+        self.OUTPUT_DIR   =   "./out"     #output directory
+        self.VERBOSE            =   1       #verbosity
+        self.WAIT               =   False    #wait for input at high verbosity 
+
         self.HG38 = None
         self.HG38_INDEX = None
-        self.REF_ALIGNED_READS = None
-        self.QUERY_ALIGNED_READS = None
 
-        self.OUTPUT_DIR         =   "."     #output directory
-        
-        self.PLOT_BLOCKS        =   None
-        self.DOT_PLOT           =   None
+        #hybrid specific parameters
+        self.SUMMARY = None
+        self.QUERY_FA     =   None
+        self.REF_FA       =   None
+
+        self.REF_BED = None
 
         self.CHUNK_SIZE         =   1000    #size of each chunk in base pairs
         self.CHUNK_PER_BLOCK    =   3       #minimum number of chunks per block
@@ -24,72 +25,39 @@ class Parameters:
         self.CHUNK_SKIP         =   2       #maximum # of chunk skip allowed
         self.CHUNK_SKIP_BP      =   2000    #maximum skip allowed in bp
         self.CHUNK_OVERLAP      =   0.25    #max overlap for chunk
-        
         self.MBLOCK_RDIST       =   20000   #max ref distance between blocks
         self.MBLOCK_QDIST       =   200000  #max query distance between blocks
         self.MBLOCK_QLEN_FACTOR =   0.05    #tolerate distance based on qlen
-
         self.ALIGN_BUFFER       =   200     #bp buffer used for aligning
-
         self.BLOCK_DIST_THRESH  =   1.5     #threshold for block insert dist
         self.MBLOCK_OVERLAP     =   100     #max overlap for megablocks in bp
         self.MIN_MBLOCK_SIZE    =   2500    #min size for megablocks in bp
         self.MAX_MBLOCK_DIST    =   1e7     #max distance between two megablocks
-
-        self.VERBOSE            =   1       #verbosity
-        self.WAIT               =   True    #wait for input at high verbosity 
-        self.STATISTICS         =   True    #generate and output statistics      
-        
         self.BLOCK_DIST_THRESH  =   1.5     #threshold for block insert dist
-
-        self.arks               =   False    #run arks/linked reads step of pipeline for improved scaffolding
-        self.LR_THRESHOLD       =   2      #minimum number of acceptable barcodes in common between canu contigs for scaffolding to proceed
-        
         self.TRUST_REF_CHUNKS   =   False    #trust the reference at the chunk level
 
-        
-    def add_report(self, report):
-        if self.STATISTICS:
-            self.reports.append(report)
-            
+        # polish specific parameters
+        self.FASTA = None
+        self.REF_ALIGNED_READS = None
+        self.QUERY_ALIGNED_READS = None
 
-def get_parameters():
+
+def get_parameters_hybrid():
     """Parses command line arguments and sets default parameters.
     Returns a Parameters object."""
 
     p = Parameters()
 
-
+    #override default parameters
     prefix = "/media/scott/Zapdos/CF062_19/"
     p.SUMMARY = prefix + "summary.txt"
     p.QUERY_FA = prefix + "OSK7121_supernova.psuedohap.10k.fasta.gz"
     p.REF_FA = prefix + "CF062B2D.contigs.fasta" 
     p.REF_BED =  prefix + "canu_data/CF062B2D.unitigs.bed"
     p.OUTPUT_DIR = prefix + "out"
+
     p.HG38_INDEX = "/media/scott/HDD/sickkids/hg38.mmi"
     p.HG38= "/media/scott/HDD/sickkids/hg38.fa"
-    p.REF_ALIGNED_READS = "/media/scott/TOSHIBA EXT/CF062_19/pacbio_to_canu_purged.reheader.bam"
-    p.QUERY_ALIGNED_READS = "/media/scott/Zapdos/CF062_19/10x_to_supernova.bam"
-
-    '''
-    
-    prefix = "/media/scott/Rotom/hybrid2/CF062_19/"
-    p.SUMMARY = prefix + "purge/summary.txt"
-    p.QUERY_FA = prefix + "OSK7121_supernova.psuedohap.10k.fasta.gz"
-    p.REF_FA = prefix + "CF062B2D.contigs.fasta" #"purge/curated.fasta"
-    p.REF_BED =  prefix + "canu_data/CF062B2D.unitigs.bed"
-    p.OUTPUT_DIR = prefix + "out"
-    
-    p.HG38_INDEX = "/media/scott/Rotom/reference/hg38/hg38.mmi"
-    p.HG38 = "/media/scott/Rotom/reference/hg38/hg38.fa"
-    p.REF_ALIGNED_READS = "/media/scott/Rotom/hybrid2/CF062_19/pacbio_to_canu_purged.reheader.bam"
-    p.QUERY_ALIGNED_READS = "/media/scott/Rotom/hybrid2/CF062_19/10x_to_supernova.bam"
-
-    '''
-
-
-    defaultPLOT_BLOCKS = None
-    defaultDOT_PLOT = None
 
 
     parser = argparse.ArgumentParser(description="Hybrid assembly tool")
@@ -103,58 +71,54 @@ def get_parameters():
                         help="Reference FASTA file")
     
     #Optional
+    parser.add_argument("-o", "--outdir", type=str, default=p.OUTPUT_DIR,
+                help="Directory where output will be written." )
+
     parser.add_argument("--confident", type=str, default=p.REF_BED, 
                     help="BED file of high-confidence reference regions")
 
     parser.add_argument("--chunk_size", type=int, default=p.CHUNK_SIZE, 
-                        help="Size of each chunk in base pairs")
+                        help="Size of each chunk in base pairs. Default=" + str(p.CHUNK_SIZE))
     parser.add_argument("--chunk_per_block", type=int, default=p.CHUNK_PER_BLOCK, 
-                        help="Minimum number of chunks per block")
+                        help="Minimum number of chunks per block. Default=" + str(p.CHUNK_PER_BLOCK))
     parser.add_argument("--chunk_max_dist", type=int, default=p.CHUNK_MAX_DIST,
-                        help="Maximum distance between chunks")
+                        help="Maximum distance between chunks. Default=" + str(p.CHUNK_MAX_DIST))
     parser.add_argument("--chunk_min_ident", type=float, default=p.CHUNK_MIN_IDENT,
-                        help="Minimum percent identity for chunk")
+                        help="Minimum percent identity for chunk. Default=" + str(p.CHUNK_MIN_IDENT))
     parser.add_argument("--chunk_skip", type=int, default=p.CHUNK_SKIP,
-                        help="Maximum # of chunk skip allowed")
+                        help="Maximum # of chunk skip allowed. Default=" + str(p.CHUNK_SKIP))
     parser.add_argument("--chunk_skip_bp", type=int, default=p.CHUNK_SKIP_BP, 
-                        help="Maximum skip allowed in bp")
+                        help="Maximum skip allowed in bp. Default=" + str(p.CHUNK_SKIP_BP))
     parser.add_argument("--chunk_overlap", type=float, default=p.CHUNK_OVERLAP,
-                        help="Max overlap for chunk")
+                        help="Max overlap for chunk. Default=" + str(p.CHUNK_OVERLAP))
     parser.add_argument("--mblock_rdist", type=int, default=p.MBLOCK_RDIST, 
-                        help="Max ref distance between blocks")
+                        help="Max ref distance between blocks. Default=" + str(p.MBLOCK_RDIST))
     parser.add_argument("--mblock_qdist", type=int, default=p.MBLOCK_QDIST, 
-                        help="Max query distance between blocks")
+                        help="Max query distance between blocks. Default=" + str(p.MBLOCK_QDIST))
     parser.add_argument("--mblock_qlen_factor", type=float, default=p.MBLOCK_QLEN_FACTOR, 
-                        help="Tolerate distance based on qlen")
+                        help="Tolerate distance based on qlen. Default=" + str(p.MBLOCK_QLEN_FACTOR))
     parser.add_argument("--align_buffer", type=int, default=p.ALIGN_BUFFER,
-                        help="Bp buffer used when aligning")
+                        help="Bp buffer used when aligning. Default=" + str(p.ALIGN_BUFFER))
     parser.add_argument("--block_dist_thresh", type=float, default=p.BLOCK_DIST_THRESH,
-                        help="Threshold for block insert dist")
+                        help="Threshold for block insert dist. Default=" + str(p.BLOCK_DIST_THRESH))
     parser.add_argument("--mblock_overlap", type=int, default=p.MBLOCK_OVERLAP,
-                        help="Max overlap for megablocks in bp")
+                        help="Max overlap for megablocks in bp. Default=" + str(p.MBLOCK_OVERLAP))
     parser.add_argument("--min_mblock_size", type=int, default=p.MIN_MBLOCK_SIZE,
-                    help="Min size for megablocks in bp")
+                    help="Min size for megablocks in bp. Default=" + str(p.MIN_MBLOCK_SIZE))
     parser.add_argument("--max_mblock_dist", type=int, default=p.MAX_MBLOCK_DIST,
-                help="Max distance between two megablocks in bp")
+                help="Max distance between two megablocks in bp. Default=" + str(p.MAX_MBLOCK_DIST))
  
     parser.add_argument("-v", "--verbose", type=int, default=p.VERBOSE,
-                        help="Verbosity")
+                        help="Verbosity. Default=" + str(p.VERBOSE))
     parser.add_argument("--wait", type=bool, default=p.WAIT,
-                    help="Wait for user input at high verbosity levels")
+                    help="Wait for user input at high verbosity levels. Default=False")
 
-    parser.add_argument("--plot_blocks", default=defaultPLOT_BLOCKS, nargs="?",
-                        help="Directory to save plots of the blocks formed")
-    parser.add_argument("--dot_plot", default=defaultDOT_PLOT, nargs="?",
-                        help="Directory to save dot plots of gaps filled")
-
-    parser.add_argument("-o", "--outdir", type=str, default=p.OUTPUT_DIR,
-                    help="Directory where output will be written." )
 
     args = parser.parse_args()
-
-    p.SUMMARY = args.alignments
+    #set parameters from user input
     p.QUERY_FA = args.qfasta
     p.REF_FA = args.rfasta
+    p.OUTPUT_DIR = args.outdir
     p.REF_BED = args.confident
     
     p.CHUNK_SIZE = args.chunk_size
@@ -173,16 +137,58 @@ def get_parameters():
     p.MIN_MBLOCK_SIZE = args.min_mblock_size
     p.MAX_MBLOCK_DIST = args.max_mblock_dist
     
-    p.PLOT_BLOCKS = args.plot_blocks
-    p.DOT_PLOT = args.dot_plot
-
     p.VERBOSE = args.verbose
     p.WAIT = args.wait
     
+    return p
+
+def get_parameters_polish():
+    """Parses command line arguments and sets default parameters.
+    Returns a Parameters object."""
+
+    p = Parameters()
+
+    #override default parameters
+    prefix = "/media/scott/Zapdos/CF062_19/"
+    p.FASTA = prefix + "out/hybrid_assembly.fasta"
+    p.REF_ALIGNED_READS = "/media/scott/TOSHIBA EXT/CF062_19/pacbio_to_canu_purged.reheader.bam"
+    p.QUERY_ALIGNED_READS = prefix + "10x_to_supernova.bam"
+    p.OUTPUT_DIR = prefix + "out"
+
+    p.HG38_INDEX = "/media/scott/HDD/sickkids/hg38.mmi"
+    p.HG38= "/media/scott/HDD/sickkids/hg38.fa"
+
+    parser = argparse.ArgumentParser(description="Hybrid polish tool")
+
+    #Positional
+    parser.add_argument("fasta", metavar="FA", default=p.FASTA, nargs="?",
+                        help="Assembly FASTA file")
+    parser.add_argument("qbam", metavar="Q_BAM", default=p.QUERY_ALIGNED_READS, nargs="?",
+                    help="Query reads aligned to FA (BAM file)")
+    parser.add_argument("rbam", metavar="R_BAM", default=p.REF_ALIGNED_READS, nargs="?",
+                    help="Reference reads aligned to FA (BAM file)")
+    #Optional
+    parser.add_argument("-o", "--outdir", type=str, default=p.OUTPUT_DIR,
+                help="Directory where output will be written." ) 
+    parser.add_argument("-v", "--verbose", type=int, default=p.VERBOSE,
+                        help="Verbosity. Default=" + str(p.VERBOSE))
+    parser.add_argument("--wait", type=bool, default=p.WAIT,
+                    help="Wait for user input at high verbosity levels. Default=False")
+
+    args = parser.parse_args()
+    #set parameters from user input
+    p.FASTA = args.fasta
+    p.QUERY_ALIGNED_READS = args.qbam
+    p.REF_ALIGNED_READS = args.rbam
+
     p.OUTPUT_DIR = args.outdir
     
+    p.VERBOSE = args.verbose
+    p.WAIT = args.wait
+    
     return p
-   
+
+
 def get_parameters_reference_polish(CFID="CF002"):
     """Parses command line arguments and sets default parameters.
     Returns a Parameters object."""
