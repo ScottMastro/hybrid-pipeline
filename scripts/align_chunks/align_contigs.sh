@@ -76,3 +76,9 @@ while [ -n "$status" ] # while $status is not empty
       sleep 30 #seconds
       status=`qstat -r $SUMMARIZE_JID | grep $SUMMARIZE_JID | grep [HQR]`
    done
+
+
+#remove intermediate directories
+rm -r $DIR/alignments
+rm -r $DIR/split
+rm -r $DIR/blast-db

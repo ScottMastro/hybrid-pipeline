@@ -1,14 +1,12 @@
 CFID=$1
-PURGE_DUPS=/hpf/largeprojects/tcagstor/projects/cf_assembly_3g/workspace/mastros/hybrid/purge_dups
-QUEUE="-q tcagdenovo"
+BASEDIR="${2:-"."}"
+QUEUE_NAME="${3:-""}"
+if [ -z "$QUEUE_NAME" ]; then QUEUE="" ; else QUEUE="-q $QUEUE_NAME"; fi
 
-module load python/3.3.5
-module load minimap2
-
-READDIR=/hpf/largeprojects/tcagstor/projects/cf_assembly_3g/workspace/mastros/hybrid/${CFID}/pacbio/reads
-ASSEM=`echo /hpf/largeprojects/tcagstor/projects/cf_assembly_3g/workspace/mastros/hybrid/${CFID}/pacbio/*.contigs.fasta`
-
-OUTDIR=/hpf/largeprojects/tcagstor/projects/cf_assembly_3g/workspace/mastros/hybrid/${CFID}/pacbio/purge
+PURGE_DUPS=${BASEDIR}/tools/purge_dups
+READDIR=${BASEDIR}/${CFID}/pacbio/reads
+ASSEM=`echo ${BASEDIR}/${CFID}/pacbio/*.contigs.fasta`
+OUTDIR=${BASEDIR}/${CFID}/pacbio/purge
 
 FQDIR="${OUTDIR}/fa_reads"
 ALNDIR="${OUTDIR}/alignments"
@@ -19,8 +17,8 @@ mkdir -p ${OUTDIR}/jobout
 mkdir -p $ALNDIR
 mkdir -p $FQDIR
 
-XOUTDIR=/hpf/largeprojects/tcagstor/projects/cf_assembly_3g/workspace/mastros/hybrid/${CFID}/10x/purge
-XASSEM=`echo /hpf/largeprojects/tcagstor/projects/cf_assembly_3g/workspace/mastros/hybrid/${CFID}/10x/*pseudohap.fasta*`
+XOUTDIR=${BASEDIR}/${CFID}/10x/purge
+XASSEM=`echo ${BASEDIR}/${CFID}/10x/*pseudohap.fasta*`
 
 XALNDIR="${XOUTDIR}/alignments"
 
@@ -52,8 +50,8 @@ for BAM in ${READDIR}/*bam; do
 
    FQ=${FQDIR}/${PREFIX}.fastq
    FASTQ=`echo "$(cd "$(dirname "$FQ")"; pwd)/$(basename "$FQ")"`
-
-   JID=$(echo "module load samtools/1.9 ; samtools bam2fq $BAM > $FASTQ" | \
+   JOB="module load samtools/1.9 ; samtools bam2fq $BAM > $FASTQ"
+   JID=$(echo $JOB | \
          qsub $QUEUE -l nodes=1:ppn=1 -l mem=8g -l vmem=8g -l walltime=3:36:00 -o ./jobout/ -e ./jobout/ -d `pwd` -N bam2fastq_${PREFIX} "-")
    JID_LIST_1="${JID_LIST_1}:${JID}"
    echo $FASTQ >> $READSLIST
@@ -149,12 +147,12 @@ JOB="rm -r $ALNDIR ; rm -r $XALNDIR ; rm $SPLIT ; rm $XSPLIT ;\
      mv ${XOUTDIR}/purged.fa ${XOUTDIR}/${CFID}.supernova.purged.fa ; \
      mv ${XOUTDIR}/hap.fa ${XOUTDIR}/${CFID}.supernova.hap.fa ; \
 	 rm -r $READSLIST ; rm -r $FQDIR"
-echo $JOB | qsub $QUEUE -W depend=afterany:${JID_4}:${XJID_4} -l nodes=1:ppn=1 -l mem=4g -l vmem=4g -l walltime=1:36:00 -o ./jobout/ -e ./jobout/ -d `pwd` -N purge_clean_${CFID} "-"
-
+FINAL_JID=$(echo $JOB | qsub $QUEUE -W depend=afterany:${JID_4}:${XJID_4} -l nodes=1:ppn=1 -l mem=4g -l vmem=4g -l walltime=1:36:00 -o ./jobout/ -e ./jobout/ -d `pwd` -N purge_clean_${CFID} "-")
 echo "Clean up job"
 echo $JOB
 
 cd $CWD
+echo $FINAL_JID
 
 #cd ${PURGE_DUPS}/runner && python setup.py install --user
 #cd $CWD

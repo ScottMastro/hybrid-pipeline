@@ -2,7 +2,7 @@
 CFID=$1
 BASEDIR="/hpf/largeprojects/tcagstor/projects/cf_assembly_3g/workspace/mastros/hybrid"
 HG38="/hpf/largeprojects/tcagstor/projects/cf_assembly_3g/workspace/mastros/reference/hg38/hg38.fa.gz"
-HG38_ANNOTATIONS="/hpf/largeprojects/tcagstor/projects/cf_assembly_3g/workspace/mastros/reference/hg38/gene_annotations.gtf"
+HG38_ANNOTATIONS="/hpf/largeprojects/tcagstor/projects/cf_assembly_3g/workspace/mastros/reference/hg38/gene_annotations.gff"
 QUEUE_NAME="tcagdenovo"
 PYTHON="/hpf/largeprojects/struglis/scott/anaconda3/bin/python"
 
@@ -56,4 +56,27 @@ mkdir -p $HYBRIDDIR
 JOB="$PYTHON ${BASEDIR}/hybrid-pipeline/src/main.py $SUMMARY $QUERY_FA $REF_FA -o $HYBRIDDIR"
 HYBRID_JID=$(echo $JOB | qsub $QUEUE $DEPEND_2 -l nodes=1:ppn=1 -l mem=32g -l vmem=32g -l walltime=6:00:00 -o $JOBOUT -e $JOBOUT -d `pwd` -N hybrid_${CFID} "-")
 
+
+echo "STEP 4: RUN QUAST"
+# =========================================
+
+QUERY_FA_RAW=`echo ${BASEDIR}/${CFID}/10x/*pseudohap.fasta*`
+REF_FA_RAW=`echo ${BASEDIR}/${CFID}/pacbio/*.contigs.fasta`
+
+QUASTDIR=${BASEDIR}/${CFID}/quast
+mkdir -p $QUASTDIR
+
+JOB="module load quast ; \
+     quast-lg.py $REF_FA_RAW $REF_FA $QUERY_FA_RAW $QUERY_FA $hybrid \
+                 -o $QUASTDIR -r $HG38 -g $HG38_ANNOTATIONS"
+	
+#Options:
+#-o  --output-dir  <dirname>       Directory to store all result files [default: quast_results/results_<datetime>]
+#-r                <filename>      Reference genome file
+#-g  --features [type:]<filename>  File with genomic feature coordinates in the reference (GFF, BED, NCBI or TXT)
+#                                  Optional 'type' can be specified for extracting only a specific feature type from GFF
+#-m  --min-contig  <int>           Lower threshold for contig length [default: 3000]
+#-t  --threads     <int>           Maximum number of threads [default: 25% of CPUs]
+
+QUAST_JID=$(echo $JOB | qsub $QUEUE -W depend=afterok:${HYBRID_JID} -l nodes=1:ppn=8 -l mem=64g -l vmem=64g -l walltime=71:59:00 -o $JOBOUT -e $JOBOUT -d `pwd` -N quast_${CFID} "-")
 
