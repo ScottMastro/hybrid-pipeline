@@ -1,3 +1,4 @@
+import os
 import utils.parameters as parameters
 import utils.log as logger
 import utils.fasta_handler as fasta
@@ -11,7 +12,8 @@ def main():
     #--------------------------------------
 
     param = parameters.get_parameters_polish()
-
+    if not os.path.exists(param.OUTPUT_DIR): os.mkdir(param.OUTPUT_DIR)
+    
     logger.FileLogger(clean=True, outdir=param.OUTPUT_DIR)
     logger.Logger(level=param.VERBOSE, wait=param.WAIT)
 
@@ -29,7 +31,7 @@ def main():
     #--------------------------------------
 
     for tigId in tigIds:
-        polisher.polish_block(blockPath, seqData, lengthData, param)
+        polisher.polish_contig(tigId, seqData, lengthData, param)
         
 if __name__== "__main__":
   main()

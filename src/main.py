@@ -1,3 +1,4 @@
+import os
 import utils.log as logger
 import utils.parameters as parameters
 import utils.file_handler as io
@@ -14,6 +15,7 @@ def main():
     #--------------------------------------
 
     param = parameters.get_parameters_hybrid()
+    if not os.path.exists(param.OUTPUT_DIR): os.mkdir(param.OUTPUT_DIR)
 
     logger.FileLogger(clean=True, outdir=param.OUTPUT_DIR)
     logger.Logger(level=param.VERBOSE, wait=param.WAIT)

@@ -1,5 +1,6 @@
 import pysam
 import pyfaidx
+
 import subprocess
 import re
 import os
@@ -67,11 +68,6 @@ def sam2bam(samFile):
     samtools_index(outName)
     return outName
 
-def samtools_faidx(faFile):
-    """Index a bam file."""
-    cmd = parse(env.SAMTOOLS)
-    subprocess.call(cmd + ["faidx", faFile])
-    return faFile + ".fai"
 
 def samtools_subset(bamFile, region, prefix):
     '''View and index a subset of a bam file'''
@@ -115,9 +111,6 @@ def samtools_write(alignments, prefix, headerBam, makeUnique=False):
     #samtools_index(outName)
     return outName
 
-def faidx_fetch(faFile, region):
-    fa = pyfaidx.Faidx(faFile)
-    return str(fa.fetch(region.chrom, region.start, region.end))
 
 #conversion
 #========================================================
@@ -199,27 +192,6 @@ def dict2fasta(fastaDict, prefix, toUpper=False, index=True):
     if index: samtools_faidx(outFile)
     return outFile
 
-def get_fasta_seq(faFile, region=None, toUpper=False):   
-    faDict = fasta2dict(faFile, toUpper=toUpper)
-    
-    if region is None:
-        fid = list(faDict.keys())[0]
-        return faDict[fid]
-
-    fid = region.chrom
-    return faDict[fid][region.start:region.end]
-
-def rename_fasta(faFile, name, toUpper=False):
-    seq = get_fasta_seq(faFile, toUpper=toUpper)
-    faDict = {name : seq}
-    temp = faFile + "__temporaryfa__.fasta"
-    
-    dict2fasta(faDict, temp, index=False)
-    shutil.move(temp, faFile)
-    
-    samtools_faidx(faFile)
-
-    return faFile
 
 
 #bcftools
@@ -521,7 +493,7 @@ def pacbio_polish(bamFile, refFa, prefix, region=None, outputFasta=False, output
     subprocess.call(arrow)
     
     if outputFasta: 
-        samtools_faidx(outFa)    
+        pyfaidx.Faidx(outFa)    
         return outFa
     
     return outVcf
@@ -529,7 +501,7 @@ def pacbio_polish(bamFile, refFa, prefix, region=None, outputFasta=False, output
 #longranger
 #========================================================
 
-def mkref_10x(refFa):
+def mkref_10x(refFa, svBlacklist=False):
     
     cmd = parse(env.LONGRANGER)
 
@@ -543,13 +515,23 @@ def mkref_10x(refFa):
         shutil.rmtree(indexDirName)
     except:
         pass
-    
+            
     subprocess.call(cmd + ["mkref", refFa])
     create_seq_dict(indexDirName + "/fasta/genome.fa")
 
+    if svBlacklist:
+        faDict = fasta2dict(refFa)
+        blacklist = indexDirName + "/regions/sv_blacklist.bed"
+        writer = open(blacklist, 'w')
+
+        for tig in faDict:
+            line="\t".join([tig, "0", str(len(faDict[tig])-1), "contig"])
+            writer.write(line)
+        writer.close()
+
     return indexDirName
     
-def align_10x(refFa, fqDir, prefix, useFreebayes=False, correctBug=True):
+def align_10x(refFa, fqDir, prefix, useFreebayes=False, svBlacklist=False):
     
     cmd = parse(env.LONGRANGER)
     gatkJar = str(env.GATK_10x_JAR)
@@ -560,7 +542,7 @@ def align_10x(refFa, fqDir, prefix, useFreebayes=False, correctBug=True):
     cwd=os.getcwd()
     os.chdir(prefix)
 
-    reference = mkref_10x(refFa)
+    reference = mkref_10x(refFa, svBlacklist)
     
     longrangerWGS = cmd + ["wgs", "--id=" + sampleName,
                      "--fastqs=" + fqDir, "--reference=" + reference,

@@ -7,9 +7,204 @@ import sys
 sys.path.append("..")
 
 import utils.file_handler as io
+import utils.fasta_handler as fasta
 import utils.vcf_annotation as annotator
 from structures.region import SimpleRegion
 import dependencies.external_tools as tools
+
+def fetch_ref_reads(bamFile, region, outdir, fileSuffix=""):
+    refAlignments = tools.samtools_fetch(bamFile, region)
+    return tools.samtools_write(refAlignments, outdir + "pacbio_reads" + fileSuffix, bamFile)
+
+def fetch_query_reads(bamFile, region, outdir):
+    io.delete_file(outdir + "10x_reads", deleteDirTree=True)
+    return tools.bam2fastq_10x(bamFile, outdir, dirName="10x_reads", region=region, returnFqList=True)
+
+def align_ref(faFile, refReads, outdir, param, outName="ref_aligned"):
+    
+    bam = outdir + outName + ".pbmm2.bam"
+    if os.path.isfile(bam):
+        print("pbmm2 alignments found, skipping step")
+        return bam
+    
+    bam = tools.align_pacbio(faFile, refReads, outdir + outName)
+    return bam
+
+def align_query(faFile, queryReads, outdir, param, outName="query_aligned"):
+    #note: outName is irrelevant
+    
+    queryReadsDir = "/".join(queryReads[0].split("/")[:-1])
+    
+    sampleName = ".".join(faFile.split(".")[:-1]).split("/")[-1] + "-longranger"
+
+    longrangerBam = outdir + sampleName + "/phased_possorted_bam.bam"
+    longrangerVCF = outdir + sampleName + "/phased_variants.vcf.gz"
+
+    if not os.path.isfile(longrangerBam) or not os.path.isfile(longrangerVCF):
+        longrangerVCF, longrangerBam = tools.align_10x(faFile, queryReadsDir, outdir, svBlacklist=True)
+    else:
+        print("Long Ranger files found, skipping step")
+
+    #correct bug in longranger 2.2.2 where hets are sometimes given GT = 1|1 
+        
+    correctedVCF = re.sub(".gz", "", longrangerVCF)
+    annotator.run_correction(longrangerVCF, correctedVCF)
+    io.delete_file(longrangerVCF)
+    
+    longrangerVCF = tools.bgzip(correctedVCF)
+    #longrangerVariants = [record for record in vcf.Reader(open(longrangerVCF, "rb"))]
+
+    return longrangerBam
+
+
+def polish_ref(targetFa, region, outdir, param, refReads=None, refAlignments=None, outName="ref_polished"):
+        
+    polishedFa = outdir + outName + ".consensus.fasta"
+    if os.path.isfile(polishedFa):
+        print("Arrow polished fasta found, skipping step")
+        return polishedFa
+    
+    deleteAlignments = False
+    if refAlignments is None:
+        refAlignments = align_ref(targetFa, refReads, outdir, param, outName)
+        deleteAlignments = True
+
+    polishedFa = tools.pacbio_polish(refAlignments, targetFa, outdir + outName, region=region, outputFasta=True)
+
+    if deleteAlignments:
+        io.delete_file(refAlignments)
+        
+    fasta.index_fasta(polishedFa)
+    return polishedFa
+
+def polish_query(targetFa, region, outdir, param, queryReads=None, queryAlignments=None, outName="query_polished"):
+
+    polishedFa = outdir + outName + ".fasta"
+    if os.path.isfile(polishedFa):
+        print("Pilon polished fasta found, skipping step")
+        return polishedFa
+
+    deleteAlignments = False
+    if queryAlignments is None:
+        qreads1, qreads2 = queryReads
+        trimmedr1 = tools.trim_10x_barcode(qreads1)
+        queryAlignments = tools.bwa_mem(targetFa, trimmedr1, qreads2, outdir + "bwa_aligned")
+        deleteAlignments = True
+
+    pilonFa = tools.pilon_polish(queryAlignments, targetFa, outdir, outputVCF=False)
+    polishedFa = outdir + outName + ".fasta"
+
+    io.move_file(pilonFa, polishedFa)
+    fasta.index_fasta(polishedFa)
+    
+    for ext in [".sa", ".pac", ".bwt", ".ann", ".amb", ".ann"]:
+        io.delete_file(pilonFa + ext)
+        
+    if deleteAlignments:
+        io.delete_file(queryAlignments)      
+        io.delete_file(trimmedr1)
+        
+    return polishedFa
+
+def high_conf_hets(consensusFa, refBam, queryBam, outdir, param):
+    
+    longshotVCF = phase_region(consensusFa, refBam, outdir + "phased", writeBams=False)
+    longrangerVCF = "/".join(queryBam.split("/")[:-1]) +  "/phased_variants.vcf.gz" 
+
+    longshotVariants = [record for record in vcf.Reader(open(longshotVCF, "rb" if longshotVCF.endswith("gz") else "r"))]
+    longrangerVariants = [record for record in vcf.Reader(open(longrangerVCF, "rb" if longrangerVCF.endswith("gz") else "r"))]
+
+    longshotSnps = {v.POS : v for v in longshotVariants if v.is_snp and v.samples[0].is_het}
+    longrangerSnps = {v.POS : v for v in longrangerVariants if v.is_snp and v.samples[0].is_het}
+    
+    commonSnpPos = set()
+    commonSnps = []
+
+    for pos in longshotSnps:
+        if pos in longrangerSnps and \
+           longshotSnps[pos].REF == longrangerSnps[pos].REF and \
+           longshotSnps[pos].ALT == longrangerSnps[pos].ALT:
+               
+               if len(longshotSnps[pos].FILTER) < 1 and len(longrangerSnps[pos].FILTER) < 1:
+                   commonSnpPos.add(pos)
+                   commonSnps.append(longrangerSnps[pos])
+
+    longrangerOnly = [longrangerSnps[pos] for pos in longrangerSnps if pos not in commonSnpPos]
+    highQualityLongranger = [v for v in longrangerOnly if len(v.FILTER) < 1 and v.QUAL > 150]
+
+    longshotOnly = [longshotSnps[pos] for pos in longshotSnps if pos not in commonSnpPos]
+    
+    #TODO: find a good threshold here for quality
+    highQualityLongshot = [v for v in longshotOnly if len(v.FILTER) < 1 and v.QUAL > 15]
+
+    highConfidenceSnps = commonSnps + highQualityLongranger + highQualityLongshot
+    
+    longrangerNotSnp = [v for v in longrangerVariants if not v.is_snp and v.samples[0].is_het]
+    
+    highConfidenceIndels=[]
+    for v in longrangerNotSnp:
+        
+        #bialleleic
+        if len(v.alleles) > 2 or len(v.ALT) > 1: 
+            continue
+        #homopolymer
+        if v.INFO["POSTHPC"][0] > 1:
+            continue
+        #filtered
+        if len(v.FILTER) > 0:
+            continue
+        #complex
+        if len(v.REF) != 1 and len(v.ALT[0]) != 1:
+            continue
+        if len(v.REF) > 8 or len(v.ALT[0]) > 8:
+            continue
+        #low qual
+        if v.QUAL < 100:
+            continue
+
+        if not v.samples[0].is_het:
+            continue
+                
+        highConfidenceIndels.append(v)
+
+    highConfidenceVariants = highConfidenceSnps + highConfidenceIndels
+    
+    vcfFile = outdir + "high_confidence_hets.vcf"
+    writer = open(vcfFile, "w+")
+    writer.write("##fileformat=VCFv4.2\n")
+    header = ["#CHROM", "POS", "ID", "REF", "ALT",
+               "QUAL",  "FILTER", "INFO", "FORMAT", "SAMPLE"]
+    writer.write("\t".join(header) + "\n")
+
+    for variant in sorted(highConfidenceVariants, key=lambda x: x.POS):
+        line = [variant.CHROM, variant.POS, ".", variant.REF, variant.ALT[0], 
+                variant.QUAL, "PASS", ".", "GT", "0/1"]       
+        writer.write("\t".join([str(x) for x in line]) + "\n")
+
+    writer.close()
+    
+    return vcfFile
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 def clean_directory(outdir):
@@ -44,6 +239,8 @@ def clean_directory(outdir):
     io.delete_file(outdir + "sdf/", deleteDirTree=True)
     io.delete_file(outdir + "refdata-consensus/", deleteDirTree=True)
     io.delete_file(outdir + "vcfeval_out/", deleteDirTree=True)
+
+
 
 def polish_across_gap(gapFa, refBam, seqData, outdir, param, outName="ref_polished"):
         
@@ -438,90 +635,12 @@ def phase_reads_refonly(consensusFa, refBam, outdir, param):
 
 
 
-def high_conf_hets(consensusFa, refBam, queryBam, outdir, param):
-    
-    longshotVCF = phase_region(consensusFa, refBam, outdir + "phased", writeBams=False)
-    longrangerVCF = "/".join(queryBam.split("/")[:-1]) +  "/phased_variants.vcf.gz" 
-
-    longshotVariants = [record for record in vcf.Reader(open(longshotVCF, "rb" if longshotVCF.endswith("gz") else "r"))]
-    longrangerVariants = [record for record in vcf.Reader(open(longrangerVCF, "rb" if longrangerVCF.endswith("gz") else "r"))]
-
-    longshotSnps = {v.POS : v for v in longshotVariants if v.is_snp and v.samples[0].is_het}
-    longrangerSnps = {v.POS : v for v in longrangerVariants if v.is_snp and v.samples[0].is_het}
-    
-    commonSnpPos = set()
-    commonSnps = []
-
-    for pos in longshotSnps:
-        if pos in longrangerSnps and \
-           longshotSnps[pos].REF == longrangerSnps[pos].REF and \
-           longshotSnps[pos].ALT == longrangerSnps[pos].ALT:
-               
-               if len(longshotSnps[pos].FILTER) < 1 and len(longrangerSnps[pos].FILTER) < 1:
-                   commonSnpPos.add(pos)
-                   commonSnps.append(longrangerSnps[pos])
-
-    longrangerOnly = [longrangerSnps[pos] for pos in longrangerSnps if pos not in commonSnpPos]
-    highQualityLongranger = [v for v in longrangerOnly if len(v.FILTER) < 1 and v.QUAL > 150]
-
-    longshotOnly = [longshotSnps[pos] for pos in longshotSnps if pos not in commonSnpPos]
-    
-    #TODO: find a good threshold here for quality
-    highQualityLongshot = [v for v in longshotOnly if len(v.FILTER) < 1 and v.QUAL > 15]
-
-    highConfidenceSnps = commonSnps + highQualityLongranger + highQualityLongshot
-    
-    longrangerNotSnp = [v for v in longrangerVariants if not v.is_snp and v.samples[0].is_het]
-    
-    highConfidenceIndels=[]
-    for v in longrangerNotSnp:
-        
-        #bialleleic
-        if len(v.alleles) > 2 or len(v.ALT) > 1: 
-            continue
-        #homopolymer
-        if v.INFO["POSTHPC"][0] > 1:
-            continue
-        #filtered
-        if len(v.FILTER) > 0:
-            continue
-        #complex
-        if len(v.REF) != 1 and len(v.ALT[0]) != 1:
-            continue
-        if len(v.REF) > 8 or len(v.ALT[0]) > 8:
-            continue
-        #low qual
-        if v.QUAL < 100:
-            continue
-
-        if not v.samples[0].is_het:
-            continue
-                
-        highConfidenceIndels.append(v)
-
-    highConfidenceVariants = highConfidenceSnps + highConfidenceIndels
-    
-    vcfFile = outdir + "high_confidence_hets.vcf"
-    writer = open(vcfFile, "w+")
-    writer.write("##fileformat=VCFv4.2\n")
-    header = ["#CHROM", "POS", "ID", "REF", "ALT",
-               "QUAL",  "FILTER", "INFO", "FORMAT", "SAMPLE"]
-    writer.write("\t".join(header) + "\n")
-
-    for variant in sorted(highConfidenceVariants, key=lambda x: x.POS):
-        line = [variant.CHROM, variant.POS, ".", variant.REF, variant.ALT[0], 
-                variant.QUAL, "PASS", ".", "GT", "0/1"]       
-        writer.write("\t".join([str(x) for x in line]) + "\n")
-
-    writer.close()
-    
-    return vcfFile
 
 def align_to_consensus_query(consensusFa, queryReads, qRegion, seqData, outdir, param):
     queryReadsDir = "/".join(queryReads[0].split("/")[:-1])
     
     longrangerBam = outdir + "consensus-longranger/phased_possorted_bam.bam"
-    longrangerVCF = outdir + "consensus-longranger/phased_vafileSuffix=""riants.vcf.gz"
+    longrangerVCF = outdir + "consensus-longranger/phased_variants.vcf.gz"
 
     if not os.path.isfile(longrangerBam) or not os.path.isfile(longrangerVCF):
         longrangerVCF, longrangerBam = tools.align_10x(consensusFa, queryReadsDir, outdir)
@@ -609,86 +728,4 @@ def align_to_consensus_ref(consensusFa, refReads, rRegion, seqData, outdir, para
     return consensusAlignBam
 
 
-def polish_query_reads(refPolishedFa, queryReads, qRegion, seqData, outdir, param):
-
-    polishedFa = outdir + "consensus.fasta"
-    if os.path.isfile(polishedFa):
-        print("Pilon polished fasta found, skipping step")
-        return polishedFa
-
-    qreads1, qreads2 = queryReads
-    trimmedr1 = tools.trim_10x_barcode(qreads1)
-    
-    alignedBam = tools.bwa_mem(refPolishedFa, trimmedr1, qreads2, outdir+"bwa_aligned")
-    polishedFa = tools.pilon_polish(alignedBam, refPolishedFa, outdir, outputVCF=False)
-    consensusFa = outdir + "consensus.fasta"
-    
-    io.move_file(polishedFa, consensusFa)
-    tools.samtools_faidx(consensusFa)
-    
-    for ext in [".sa", ".pac", ".bwt", ".ann", ".amb", ".ann"]:
-        io.delete_file(refPolishedFa + ext)
-        
-    io.delete_file(alignedBam)
-    io.delete_file(trimmedr1)
-
-    return consensusFa
-
-def polish_ref_reads(hybridFa, refReads, rRegion, seqData, outdir, param, outName="ref_polished"):
-        
-    polishedFa = outdir + outName + ".fasta"
-    if os.path.isfile(polishedFa):
-        print("Arrow polished fasta found, skipping step")
-        return polishedFa
-
-    #add flanking sequence to fasta file
-    bufferLength = 500
-    
-    sequenceDict = tools.fasta2dict(hybridFa, toUpper=True)
-    seqName = list(sequenceDict.keys())[0]
-    sequenceDict["l_flank"] = seqData[rRegion.chrom][max(0,rRegion.start-bufferLength) : rRegion.start]
-    sequenceDict["r_flank"] = seqData[rRegion.chrom][rRegion.end+1 : rRegion.end + bufferLength]
-    flankedFa = tools.dict2fasta(sequenceDict, outdir + outName + "_unpolished_plusflank")
-
-    #align to unpolished sequence
-    alignedBam = tools.align_pacbio(flankedFa, refReads, outdir + outName + "_pacbio_aligned_unpolished")
-
-    polishRegion = SimpleRegion(seqName, 0, len(sequenceDict[seqName])-1)
-    alignments = tools.samtools_fetch(alignedBam, polishRegion)
-    alignments = reset_supplemental_alns(alignments, keepPrefix="hybrid")
-    emptyBam = tools.samtools_write([], outdir + "temp", param.REF_ALIGNED_READS)
-    bamHeader = tools.align_pacbio(hybridFa, emptyBam, outdir + "header")
-    polishAlignBam = tools.samtools_write(alignments, outdir + outName + "_temp.pbmm2", bamHeader)
-    
-    #create consensus sequence
-    targetRegion = SimpleRegion(seqName, 0, len(sequenceDict[seqName])-1)
-    
-    polishedFa = tools.pacbio_polish(polishAlignBam, hybridFa, outdir + outName + "_temp", region=targetRegion, outputFasta=True)
-    
-    #rename consensus sequence
-    consensusSeq = tools.get_fasta_seq(polishedFa, toUpper=True)
-    sequenceDict = {seqName + "_refpolished" : consensusSeq}
-    consensusFa = tools.dict2fasta(sequenceDict, outdir + outName)
-
-    io.delete_file(polishAlignBam)
-    io.delete_file(emptyBam)
-    io.delete_file(bamHeader)      
-
-    io.delete_file(flankedFa)
-    io.delete_file(polishedFa)
-    io.delete_file(alignedBam)
-    io.delete_file(re.sub(".fasta", ".vcf", polishedFa))       
-    
-    return consensusFa
-
-    
-#pacbio reads
-def fetch_ref_reads(bamFile, rRegion, outdir, fileSuffix=""):
-    regionStr = re.sub("[:-]", "_", str(rRegion))
-    refAlignments = tools.samtools_fetch(bamFile, rRegion)
-    return tools.samtools_write(refAlignments, outdir + "pacbio_reads" + fileSuffix, bamFile)
-
-def fetch_query_reads(bamFile, qRegion, outdir):
-    io.delete_file(outdir + "10x_reads", deleteDirTree=True)
-    return tools.bam2fastq_10x(bamFile, outdir, dirName="10x_reads", region=qRegion, returnFqList=True)
     

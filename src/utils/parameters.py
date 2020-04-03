@@ -149,10 +149,11 @@ def get_parameters_polish():
     p = Parameters()
 
     #override default parameters
-    prefix = "/media/scott/Zapdos/CF062_19/"
-    p.FASTA = prefix + "out/hybrid_assembly.fasta"
-    p.REF_ALIGNED_READS = "/media/scott/TOSHIBA EXT/CF062_19/pacbio_to_canu_purged.reheader.bam"
-    p.QUERY_ALIGNED_READS = prefix + "10x_to_supernova.bam"
+    prefix = "/media/scott/Zapdos/"
+    p.FASTA = prefix + "scaff42.fasta"
+    
+    p.REF_ALIGNED_READS = prefix + "pb_scaff42.bam"
+    p.QUERY_ALIGNED_READS = prefix + "10x_scaff42.bam"
     p.OUTPUT_DIR = prefix + "out"
 
     p.HG38_INDEX = "/media/scott/HDD/sickkids/hg38.mmi"

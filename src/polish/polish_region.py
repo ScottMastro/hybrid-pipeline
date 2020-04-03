@@ -4,9 +4,11 @@ import copy
 import sys
 sys.path.append("..")
 
-from . import polish_region_implementation as polisher
+import polish.polish_region_implementation as impl
 import utils.file_handler as io
 import utils.paf_helper as paf
+import utils.fasta_handler as fasta
+
 from structures.region import SimpleRegion
 import dependencies.external_tools as tools
 
@@ -51,6 +53,137 @@ def get_high_confidence_regions(consensusFa, blockPath, outdir, seqData):
     qPafRegions = paf.paf_to_regions(qPaf, q=False)
     io.delete_file(qFa)
     return qPafRegions
+
+def polish_contig(tigId, seqData, lengthData, param):
+    cd = os.getcwd()
+    os.chdir(param.OUTPUT_DIR)
+    
+    info = dict()
+    startTime = time.time()
+    
+    outdir = param.OUTPUT_DIR + "/" + str(tigId) + "/"
+    if not os.path.exists(outdir): os.mkdir(outdir)
+    #else: return
+
+    seqNames = ["consensus", "hap1", "hap2"]
+
+    region = SimpleRegion(tigId, 0, lengthData[tigId])
+    
+    #extract reads
+    refReads = impl.fetch_ref_reads(param.REF_ALIGNED_READS, region, outdir)
+    queryReads = impl.fetch_query_reads(param.QUERY_ALIGNED_READS, region, outdir) 
+
+    #polish sequence
+    hybridFa = fasta.write_fasta(outdir + "unpolished.fasta", {tigId : seqData[tigId]})
+    refPolishedFa = impl.polish_ref(hybridFa, region, outdir, param, \
+                                    refAlignments=param.REF_ALIGNED_READS, outName="ref_polished")
+    
+    queryPolishedFa = impl.polish_query(refPolishedFa, region, outdir, param, \
+                                        queryReads=queryReads, outName="consensus")
+
+    consensusFa = fasta.rename_single_fasta(queryPolishedFa, seqNames[0], toUpper=True)
+
+    #align reads
+    refBam = impl.align_ref(consensusFa, refReads, outdir, param, "ref_to_consensus")
+    queryBam = impl.align_query(consensusFa, queryReads, outdir, param)
+
+    #get heterozygous variants and phase reads
+    highConfVCF = impl.high_conf_hets(consensusFa, refBam, queryBam, outdir, param)
+    refHaploBam, queryHaploBam = impl.phase_consensus(consensusFa, highConfVCF, refBam, queryBam, outdir, param)
+
+    hap1Fa, hap2Fa = consensusFa, consensusFa
+
+    
+    
+    
+    
+
+    #get heterozygous variants and phase reads
+    highConfVCF = polisher.high_conf_hets(consensusFa, refBam, queryBam, outdir, param)
+    refHaploBam, queryHaploBam = polisher.phase_consensus(consensusFa, highConfVCF, refBam, queryBam, outdir, param)
+
+    hap1Fa, hap2Fa = consensusFa, consensusFa
+    
+    niter = 1
+    realign = False
+    while niter > 0:
+        hap1Fa = polisher.haplotype_polish_ref(1, hap1Fa, refHaploBam, outdir, param, realign)
+        hap2Fa = polisher.haplotype_polish_ref(2, hap2Fa, refHaploBam, outdir, param, realign)
+        realign=True
+        
+        #optional back align step
+        hap1Fa = tools.rename_fasta(hap1Fa, seqNames[1])
+        hap2Fa = tools.rename_fasta(hap2Fa, seqNames[2])
+        tools.align_pacbio(consensusFa, hap1Fa, outdir + "hap1_backaligned_refpolished")
+        tools.align_pacbio(consensusFa, hap2Fa, outdir + "hap2_backaligned_refpolished")
+        
+        hap1Fa = polisher.haplotype_polish_query(1, hap1Fa, queryHaploBam, outdir, param, realign)
+        hap2Fa = polisher.haplotype_polish_query(2, hap2Fa, queryHaploBam, outdir, param, realign)
+    
+        #optional back align step
+        hap1Fa = tools.rename_fasta(hap1Fa, seqNames[1])
+        hap2Fa = tools.rename_fasta(hap2Fa, seqNames[2])
+        tools.align_pacbio(consensusFa, hap1Fa, outdir + "hap1_backaligned_refquerypolished")
+        tools.align_pacbio(consensusFa, hap2Fa, outdir + "hap2_backaligned_refquerypolished")
+
+        niter -=1
+    
+    hap1Fa = tools.rename_fasta(hap1Fa, seqNames[1])
+    hap2Fa = tools.rename_fasta(hap2Fa, seqNames[2])
+
+    
+    '''
+    
+    refBam,queryBam = polisher.phase_reads(consensusFa, highConfVCF, refBam, queryBam, outdir, param)
+
+    #call variants
+    refCallsVCF = polisher.call_variants_ref(consensusFa, refBam, outdir, param)
+    queryCallsVCF = polisher.call_variants_query(consensusFa, queryBam, outdir, param)
+
+    mappableRegions = get_high_confidence_regions(consensusFa, blockPath, outdir, seqData)
+    consensusVariants = polisher.call_variants(consensusFa, queryCallsVCF,refCallsVCF, mappableRegions, outdir)    
+    finalVCF = polisher.phase_vcf(consensusFa, consensusVariants, refBam, queryBam, outdir, param)
+    '''
+    
+    fastas = [consensusFa, hap1Fa, hap2Fa]
+    graph = tools.construct_graph_msga(fastas, outdir + "graph", normalize=True, renameSeqs=seqNames, baseSeq=seqNames[0])
+    tools.index_graph(graph)
+    finalVCF = tools.graph_to_vcf(graph, "consensus", "hap", outdir + "graph")
+    
+    
+    info["time"] = round(time.time() - startTime,1)
+    
+    #polisher.clean_directory(outdir)
+    
+    #TODO: CLEAN FINAL VCF, VALIDATE HAPLOTYPE, PHASESETS
+ 
+    os.chdir(cd)
+
+    return finalVCF
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 def polish_block(blockPath, seqData, lengthData, param):
     cd = os.getcwd()
@@ -154,20 +287,6 @@ def polish_block(blockPath, seqData, lengthData, param):
     os.chdir(cd)
 
     return finalVCF
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def polish_interblock(blockPathBefore, blockPathAfter, seqData, lengthData, param):

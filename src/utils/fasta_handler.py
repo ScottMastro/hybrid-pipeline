@@ -1,5 +1,7 @@
 from Bio import SeqIO
+import pyfaidx
 
+import shutil
 import re
 import gzip
 import csv
@@ -7,6 +9,15 @@ csv.field_size_limit(999999999)
 
 rcDict = {'A':'T', 'C':'G', 'G':'C', 'T':'A', 'a':'C', 'c':'G', 'g':'C', 't':'A', 'N':'N', 'n':'N'} 
 def reverse_complement(seq): return ''.join([rcDict[x] for x in seq[::-1]])
+
+def index_fasta(faFile):
+    """Index a FASTA file."""
+    faidx = pyfaidx.Faidx(faFile)
+    return faidx
+
+def faidx_fetch(faFile, region):
+    fa = pyfaidx.Faidx(faFile)
+    return str(fa.fetch(region.chrom, region.start, region.end))
 
 def read_fasta(fasta, toUpper=False):
     """Loads fasta (or gzipped fasta) file into memory with SeqIO.
@@ -30,7 +41,7 @@ def read_fasta(fasta, toUpper=False):
 #    writer.write(">" + fid + "\n" + \
 #             re.sub("(.{64})", "\\1\n", "".join(sequence), 0, re.DOTALL) + "\n")
 
-def write_fasta(faPath, fastaDict, toUpper=False):
+def write_fasta(faPath, fastaDict, toUpper=False, index=False):
     """Takes a directory path and dictionary of id->sequence.
     Writes a FASTA file from dictionary sequence.
     """
@@ -45,6 +56,8 @@ def write_fasta(faPath, fastaDict, toUpper=False):
                  re.sub("(.{64})", "\\1\n", "".join(fastaDict[fid]), 0, re.DOTALL) + "\n")
 
     writer.close()
+
+    if index: index_fasta(faPath)
     return faPath
 
 def get_fasta_len(faFile, fid=None):
@@ -65,6 +78,20 @@ def get_first_id(faFile):
     faDict = read_fasta(faFile)
     fid = list(faDict.keys())[0]
     return fid
+
+def get_fasta_seq(faFile, region=None, toUpper=False):
+    """Returns a string of the sequence given by region.
+    If region is None, returns the first FASTA sequence.
+    """
+    faDict = read_fasta(faFile, toUpper=toUpper)
+
+    if region is None:
+        fid = list(faDict.keys())[0]
+        return faDict[fid]
+
+    return faDict[region.chrom][region.start:region.end]
+
+
 '''
 def get_fasta_seq(faFile, region=None):   
     """Gets the sequence of a FASTA sequence with id fid.
@@ -79,6 +106,18 @@ def get_fasta_seq(faFile, region=None):
     fid = region.chrom
     return faDict[fid][region.start:region.end]
 '''
+
+def rename_single_fasta(faFile, name, toUpper=False):
+    seq = get_fasta_seq(faFile, toUpper=toUpper)
+    faDict = {name : seq}
+    temp = faFile + "__temporaryfa__.fasta"
+    
+    write_fasta(temp, faDict)
+    shutil.move(temp, faFile)
+    
+    index_fasta(faFile)
+
+    return faFile
 
 def path_to_sequence(path, seqData):
     """
