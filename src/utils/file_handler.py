@@ -86,35 +86,13 @@ def validate_ids(rids, qids):
         return False
     return True
 
-    
-def parse_confident_regions(bedFile, rids, param):
+def parse_bed(bedFile):
     """Loads BED file containing unitigs."""
     
-    bed = BedTool(bedFile)
+    if bedFile is None:
+        return None
     
-    #convert chrom name in bedFile from "ctg" to "tig" (Canu)
-    isTig = True
-    for rid in rids:
-        if not rid.startswith("tig"):
-            isTig=False
-            break
-    isCtg = True
-    for inv in bed:
-        if not inv.chrom.startswith("ctg"):
-            isCtg=False
-            break
-
-    if isTig and isCtg:
-        reader = open(bedFile, "r")
-        name = os.path.basename(bedFile)
-        renamed = param.OUTPUT_DIR + "/" + re.sub(".bed", ".renamed.bed", name)
-        writer = open(renamed, "w+")
-        for line in reader: 
-            writer.write(re.sub("ctg", "tig", line))
-        reader.close()
-        writer.close()
-        bed = BedTool(renamed)
-        
+    bed = BedTool(bedFile)        
     return bed
     
  

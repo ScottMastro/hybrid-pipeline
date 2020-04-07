@@ -37,7 +37,7 @@ def main():
     rids.sort(key=lambda x: -lengthData[x])
     qids.sort(key=lambda x: -lengthData[x])
 
-    confBed = io.parse_confident_regions(param.REF_BED, rids, param)   
+    confBed = io.parse_bed(param.REF_BED)   
     
     #--------------------------------------
     # STITCH BLOCKS
