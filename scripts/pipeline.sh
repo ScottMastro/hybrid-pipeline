@@ -58,7 +58,7 @@ if [ -f $SUMMARY ]; then
    DEPEND_2=""
 else
    JOB="bash $ALIGN_TIGS $REF_FA $QUERY_FA $BLOCKDIR $SUMMARY_PREFIX $QUEUE_NAME"
-   BLOCK_JID=$(echo $JOB | qsub $QUEUE $DEPEND_1 -l nodes=1:ppn=1 -l mem=16g -l vmem=16g -l walltime=6:00:00 -o $JOBOUT -e $JOBOUT -d `pwd` -N align_tigs_${CFID} "-")
+   BLOCK_JID=$(echo $JOB | qsub $QUEUE $DEPEND_1 -l nodes=1:ppn=1 -l mem=32g -l vmem=32g -l walltime=23:00:00 -o $JOBOUT -e $JOBOUT -d `pwd` -N align_tigs_${CFID} "-")
 
    DEPEND_2="-W depend=afterok:${BLOCK_JID}"
 fi
@@ -71,6 +71,7 @@ mkdir -p $HYBRIDDIR
 
 # EXPECTED RESULT OF STEP 3
 HYBRID_FA=${HYBRIDDIR}/hybrid_assembly.fasta
+HYBRID_LEFTOVER=${HYBRIDDIR}/hybrid_assembly_leftover.fasta
 
 if [ -f $HYBRID_FA ]; then
    DEPEND_3=""
@@ -91,8 +92,8 @@ REF_FA_RAW=`echo ${BASEDIR}/${CFID}/pacbio/*.contigs.fasta`
 QUASTDIR=${BASEDIR}/${CFID}/quast
 mkdir -p $QUASTDIR
 
-JOB="module load quast ; quast-lg.py $REF_FA_RAW $REF_FA $QUERY_FA_RAW $QUERY_FA \
-                         $HYBRID_FA -o $QUASTDIR -r $HG38 -g $HG38_ANNOTATIONS"
+JOB="module load quast ; quast-lg.py $REF_FA_RAW $QUERY_FA_RAW \
+                         $HYBRID_FA $HYBRID_LEFTOVERS -o $QUASTDIR -r $HG38 -g $HG38_ANNOTATIONS"
 
 #Options:
 #-o  --output-dir  <dirname>       Directory to store all result files [default: quast_results/results_<datetime>]
@@ -102,4 +103,5 @@ JOB="module load quast ; quast-lg.py $REF_FA_RAW $REF_FA $QUERY_FA_RAW $QUERY_FA
 #-m  --min-contig  <int>           Lower threshold for contig length [default: 3000]
 #-t  --threads     <int>           Maximum number of threads [default: 25% of CPUs]
 
-QUAST_JID=$(echo $JOB | qsub $QUEUE $DEPEND_3 -l nodes=1:ppn=6 -l mem=210g -l vmem=210g -l walltime=71:59:00 -o $JOBOUT -e $JOBOUT -d `pwd` -N quast_${CFID} "-")
+QUAST_JID=$(echo $JOB | qsub $QUEUE $DEPEND_3 -l nodes=1:ppn=8 -l mem=220g -l vmem=220g -l walltime=47:59:00 -o $JOBOUT -e $JOBOUT -d `pwd` -N quast_${CFID} "-")
+

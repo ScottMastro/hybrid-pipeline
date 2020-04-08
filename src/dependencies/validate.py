@@ -27,6 +27,7 @@ if __name__== "__main__":
     print("ATTEMPTING TO IMPORT PYTHON PACKAGES...")
     import pysam
     import pyfaidx
+    import pyfastx
     import subprocess
     import pybedtools
     import ssw

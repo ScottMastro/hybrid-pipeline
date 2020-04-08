@@ -7,90 +7,79 @@ PYTHON="${BASEDIR}/tools/python"
 
 if [ -z "$QUEUE_NAME" ]; then QUEUE="" ; else QUEUE="-q $QUEUE_NAME"; fi
 
-PURGE=${BASEDIR}/hybrid-pipeline/scripts/purge.sh
-ALIGN_TIGS=${BASEDIR}/hybrid-pipeline/scripts/align_chunks/align_contigs.sh
-#SUMMARIZE_HITS=${BASEDIR}/hybrid-pipeline/scripts/align_chunks/summarize_hits.sh
+LONGRANGER_ALN=${BASEDIR}/hybrid-pipeline/scripts/run_longranger.sh
+PBMM2_ALN=${BASEDIR}/hybrid-pipeline/scripts/run_pbmm2.sh
+POLISH_SCRIPT=${BASEDIR}/hybrid-pipeline/src/main_polish.sh
 
 JOBOUT=${BASEDIR}/jobout/${CFID}
 mkdir -p $JOBOUT
 
-UNITIGS_BED=`ls ${BASEDIR}/${CFID}/pacbio/*.unitigs.bed`
-if [ ! -f $UNITIGS_BED ]; then
-   echo "COULD NOT FIND UNITIGS BED FILE!"
-   exit 1
-fi
-
-echo "STEP 1: PURGE DUPLICATES"
+echo "STEP 5: REALIGNMENT"
 # =========================================
-
-# EXPECTED RESULT OF STEP 1
-REF_FA=${BASEDIR}/${CFID}/pacbio/purge/${CFID}.canu.purged.fa
-QUERY_FA=${BASEDIR}/${CFID}/10x/purge/${CFID}.supernova.purged.fa
-
-if [ -f $REF_FA ] && [ -f $QUERY_FA ]; then
-   DEPEND_1=""
-   echo "FOUND FILES: $REF_FA $QUERY_FA"
-else
-   PURGE_JID=$(bash $PURGE $CFID $BASEDIR $QUEUE_NAME | tail -1)
-   DEPEND_1="-W depend=afterok:${PURGE_JID}"
-fi
-
-echo "STEP 2: ALIGN ASSEMBLIES & BUILD BLOCKS"
-# =========================================
-
-BLOCKDIR=${BASEDIR}/${CFID}/block
-SUMMARY_PREFIX=${CFID}_supernova_vs_canu
-
-# EXPECTED RESULT OF STEP 2
-SUMMARY=${BLOCKDIR}/${SUMMARY_PREFIX}.id95.cov40.summary.txt
-
-if [ -f $SUMMARY ]; then
-   DEPEND_2=""
-else
-   JOB="bash $ALIGN_TIGS $REF_FA $QUERY_FA $BLOCKDIR $SUMMARY_PREFIX $QUEUE_NAME"
-   BLOCK_JID=$(echo $JOB | qsub $QUEUE $DEPEND_1 -l nodes=1:ppn=1 -l mem=16g -l vmem=16g -l walltime=6:00:00 -o $JOBOUT -e $JOBOUT -d `pwd` -N align_tigs_${CFID} "-")
-
-   DEPEND_2="-W depend=afterok:${BLOCK_JID}"
-fi
-
-echo "STEP 3: MAKE DRAFT HYBRID"
-# =========================================
-
 HYBRIDDIR=${BASEDIR}/${CFID}/hybrid
-mkdir -p $HYBRIDDIR
-
-# EXPECTED RESULT OF STEP 3
 HYBRID_FA=${HYBRIDDIR}/hybrid_assembly.fasta
 
-if [ -f $HYBRID_FA ]; then
-   DEPEND_3=""
-else
+REALIGN_DIR=${BASEDIR}/${CFID}/hybrid_align
+LONGRANGER_DIR=$REALIGN_DIR/10x
+mkdir -p $LONGRANGER_DIR
+READSDIR_10X=${BASEDIR}/${CFID}/10x/reads
+LONGRANGER=${BASEDIR}/tools/longranger
+PICARD=${BASEDIR}/tools/picard.jar
 
-   JOB="$PYTHON ${BASEDIR}/hybrid-pipeline/src/main.py \
-        $SUMMARY $QUERY_FA $REF_FA --confident $UNITIGS_BED -o $HYBRIDDIR"
-   HYBRID_JID=$(echo $JOB | qsub $QUEUE $DEPEND_2 -l nodes=1:ppn=1 -l mem=32g -l vmem=32g -l walltime=6:00:00 -o $JOBOUT -e $JOBOUT -d `pwd` -N hybrid_${CFID} "-")
-   DEPEND_3="-W depend=afterok:${HYBRID_JID}"
+PBMM2_DIR=${REALIGN_DIR}/pacbio
+PBMM2_TEMP_DIR=${PBMM2_DIR}/alns
+mkdir -p $PBMM2_TEMP_DIR
+READSDIR_PB=${BASEDIR}/${CFID}/pacbio/reads
+PBMM2=${BASEDIR}/tools/pbmm2
+
+# EXPECTED RESULT OF STEP 5
+PBMM2_BAM=${PBMM2_DIR}/${CFID}.pbmm2.bam
+LONGRANGER_BAM=${LONGRANGER_DIR}/${CFID}.longranger.bam
+
+if [ -f $LONGRANGER_BAM ]; then
+   echo "ALIGNMENT FILE FOUND, SKIPPING: $LONGRANGER_BAM"
+   LR_JID=""
+else
+   CORES=32 
+   MEM=121
+   JOB="bash $LONGRANGER_ALN $CFID $HYBRID_FA $READSDIR_10X $LONGRANGER $PICARD $LONGRANGER_DIR"
+   LR_JID=$(echo $JOB | qsub $QUEUE -l nodes=1:ppn=$CORES -l mem=${MEM}g -l vmem=${MEM}g -l walltime=239:00:00 -o $JOBOUT -e $JOBOUT -d `pwd` -N ${CFID}_longranger_aln "-")
+   LR_JID=:$LR_JID
 fi
 
-echo "STEP 4: RUN QUAST"
+if [ -f $PBMM2_BAM ]; then
+   echo "ALIGNMENT FILE FOUND, SKIPPING: $PBMM2_BAM"
+   PBMM2_JID=""
+else
+   BAMLIST=${PBMM2_DIR}/bamlist.txt
+   echo -n > $BAMLIST
+
+   JID_LIST=""
+
+   for READS in $READSDIR_PB/*; do
+      CORES=16
+      MEM=64
+
+      JOB="bash $PBMM2_ALN $HYBRID_FA $READS $PBMM2 $PBMM2_TEMP_DIR"
+      JID=$(echo $JOB | qsub $QUEUE -l nodes=1:ppn=$CORES -l mem=${MEM}g -l vmem=${MEM}g -l walltime=16:00:00 -o $JOBOUT -e $JOBOUT -d `pwd` -N ${CFID}_pbmm2_aln "-")
+      JID_LIST=${JID_LIST}:${JID}
+   
+      echo ${PBMM2_TEMP_DIR}/${READS##*/}.pbmm2.bam >> $BAMLIST
+   done
+
+   JOB="module load samtools/1.9 ; samtools merge --threads 16 -b $BAMLIST $PBMM2_BAM $BAMLIST ; samtools index $PBMM2_BAM"
+   PBMM2_JID=$(echo $JOB | qsub $QUEUE -W depend=afterok${JID_LIST} -l nodes=1:ppn=16 -l mem=24g -l vmem=24g -l walltime=41:59:00 -o $JOBOUT -e $JOBOUT -d `pwd` -N ${CFID}_pbmm2_merge "-")
+   PBMM2_JID=:$PBMM2_JID
+fi
+
+if [ ! -z $LR_JID ] || [ ! -z $PBMM2_JID ] ; then
+   DEPEND_4="-W depend=afterok${LR_JID}${PBMM2_JID}"
+else
+   DEPEND_4=""
+fi
+
+echo "STEP 6: POLISHING"
 # =========================================
 
-QUERY_FA_RAW=`echo ${BASEDIR}/${CFID}/10x/*pseudohap.fasta*`
-REF_FA_RAW=`echo ${BASEDIR}/${CFID}/pacbio/*.contigs.fasta`
 
-QUASTDIR=${BASEDIR}/${CFID}/quast
-mkdir -p $QUASTDIR
-
-JOB="module load quast ; quast-lg.py $REF_FA_RAW $REF_FA $QUERY_FA_RAW $QUERY_FA \
-                         $HYBRID_FA -o $QUASTDIR -r $HG38 -g $HG38_ANNOTATIONS"
-
-#Options:
-#-o  --output-dir  <dirname>       Directory to store all result files [default: quast_results/results_<datetime>]
-#-r                <filename>      Reference genome file
-#-g  --features [type:]<filename>  File with genomic feature coordinates in the reference (GFF, BED, NCBI or TXT)
-#                                  Optional 'type' can be specified for extracting only a specific feature type from GFF
-#-m  --min-contig  <int>           Lower threshold for contig length [default: 3000]
-#-t  --threads     <int>           Maximum number of threads [default: 25% of CPUs]
-
-QUAST_JID=$(echo $JOB | qsub $QUEUE $DEPEND_3 -l nodes=1:ppn=8 -l mem=64g -l vmem=64g -l walltime=71:59:00 -o $JOBOUT -e $JOBOUT -d `pwd` -N quast_${CFID} "-")
 
