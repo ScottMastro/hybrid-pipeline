@@ -29,10 +29,10 @@ def main():
     #--------------------------------------
     # POLISH
     #--------------------------------------
+    def clean_name(name): return re.sub(r'[\\/*?:"<>|]', "_", str(name))
 
     for tigId in tigIds:
-        outdir = param.OUTPUT_DIR + "/" + str(tigId)
-        outdir = re.sub(r'[\\/*?:"<>|]', "_", outdir)
+        outdir = param.OUTPUT_DIR + "/" + clean_name(tigId)
         if not os.path.exists(outdir): os.mkdir(outdir)
         
         polisher.polish_contig(tigId, outdir, seqData, lengthData, param)
