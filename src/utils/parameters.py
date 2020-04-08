@@ -118,6 +118,7 @@ def get_parameters_hybrid():
     #set parameters from user input
     p.QUERY_FA = args.qfasta
     p.REF_FA = args.rfasta
+    p.SUMMARY = args.alignments
     p.OUTPUT_DIR = args.outdir
     p.REF_BED = args.confident
     

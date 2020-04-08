@@ -67,7 +67,7 @@ do
 done
 
 JOB="bash ${SCRIPTDIR}/summarize_hits.sh $OUT $PREFIX_NAME"
-SUMMARIZE_JID=$(echo $JOB | qsub $QUEUE -W depend=afterok${JID_LIST} -l nodes=1:ppn=1 -l mem=16g -l vmem=16g -l walltime=6:00:00 -o ./jobout/ -e ./jobout/ -d `pwd` -N summarize_hits "-" | tail -1)
+SUMMARIZE_JID=$(echo $JOB | qsub $QUEUE -W depend=afterok${JID_LIST} -l nodes=1:ppn=1 -l mem=16g -l vmem=16g -l walltime=6:00:00 -o $jobout/ -e $jobout/ -d `pwd` -N summarize_hits "-" | tail -1)
 
 
 status=`qstat -r $SUMMARIZE_JID | grep $SUMMARIZE_JID | grep [HQR]`

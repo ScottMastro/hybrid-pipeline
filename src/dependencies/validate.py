@@ -1,5 +1,6 @@
 import subprocess
-import environment as env
+import hpf_environment as env
+#import environment as env
 
 def parse(command):
     return command.split()
@@ -27,6 +28,8 @@ if __name__== "__main__":
     import pysam
     import pyfaidx
     import subprocess
+    import pybedtools
+    import ssw
     import re
     import os
     from Bio import SeqIO
@@ -43,8 +46,6 @@ if __name__== "__main__":
     version(env.TABIX, "TABIX")
     #picard requires a tool name included to get version number
     version(env.PICARD, "PICARD", versionTag="ViewSam --version")
-    version(env.PBLAT, "PBLAT", versionTag=None)
-    version(env.PBLAT, "NUCDIFF")
 
     #ILLUMINA TOOLS
     version(env.BWA, "BWA", versionTag=None)
@@ -61,7 +62,7 @@ if __name__== "__main__":
     #GRAPH TOOLS
     version(env.VG, "VG", versionTag="version")
     version(env.NANOPLOT, "NANOPLOT")
-    version(env.GRAPHVIZ_DOT, "GRAPHVIZ_DOT", versionTag="-v")
+    #version(env.GRAPHVIZ_DOT, "GRAPHVIZ_DOT", versionTag="-v")
     
     #PACBIO TOOLS
     version(env.MM2, "MM2")

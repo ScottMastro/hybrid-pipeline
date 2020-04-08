@@ -5,7 +5,6 @@ BEDTOOLS = "bedtools"
 BGZIP = "bgzip"
 TABIX = "tabix"
 PICARD="java -Xmx8G -jar /home/scott/bin/picard.jar"
-PBLAT = "/home/scott/bin/pblat/pblat"
 
 #https://anaconda.org/bioconda/nucdiff
 #https://github.com/uio-cels/NucDiff
@@ -43,5 +42,3 @@ LONGRANGER_MEM=8
 GATK_10x_JAR="/home/scott/bin/gatk-4.0.0.0/gatk-package-4.0.0.0-local.jar"
 
 BAM2FQ_10X="/home/scott/bin/bamtofastq-1.2.0"
-
-
