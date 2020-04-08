@@ -1,4 +1,4 @@
-import os
+import os, re
 import utils.parameters as parameters
 import utils.log as logger
 import utils.fasta_handler as fasta
@@ -31,7 +31,11 @@ def main():
     #--------------------------------------
 
     for tigId in tigIds:
-        polisher.polish_contig(tigId, seqData, lengthData, param)
+        outdir = param.OUTPUT_DIR + "/" + str(tigId)
+        outdir = re.sub(r'[\\/*?:"<>|]', "_", outdir)
+        if not os.path.exists(outdir): os.mkdir(outdir)
+        
+        polisher.polish_contig(tigId, outdir, seqData, lengthData, param)
         
 if __name__== "__main__":
   main()

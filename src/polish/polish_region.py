@@ -54,17 +54,13 @@ def get_high_confidence_regions(consensusFa, blockPath, outdir, seqData):
     io.delete_file(qFa)
     return qPafRegions
 
-def polish_contig(tigId, seqData, lengthData, param):
+def polish_contig(tigId, outdir, seqData, lengthData, param):
     cd = os.getcwd()
-    os.chdir(param.OUTPUT_DIR)
+    os.chdir(outdir)
     
     info = dict()
     startTime = time.time()
     
-    outdir = param.OUTPUT_DIR + "/" + str(tigId) + "/"
-    if not os.path.exists(outdir): os.mkdir(outdir)
-    #else: return
-
     seqNames = ["consensus", "hap1", "hap2"]
 
     region = SimpleRegion(tigId, 0, lengthData[tigId])
