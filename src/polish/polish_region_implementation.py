@@ -198,6 +198,59 @@ def phase_consensus(consensusFa, highConfVCF, refBam, queryBam, outdir, param):
     return refHaploBam, queryHaploBam
 
 
+def haplotype_polish_query(hap, hapFa, haploBam, outdir, param, realign=True):
+    hap = str(hap)
+    reads = split_reads(haploBam)
+
+    assignedReads = reads[hap]
+    idSet = {r.query_name for r in assignedReads}
+
+    for r in reads["1" if hap == "2" else "2"] + reads["0"]:
+        if r.query_name in idSet:
+            assignedReads.append(r)
+    
+    assignedBam = tools.samtools_write(assignedReads, outdir + hap + "_polish_input_query", haploBam)
+    
+    if realign:
+        dirname = "10x_hap" + hap
+        r1,r2 = tools.bam2fastq_10x(assignedBam, outdir, dirName=dirname, returnFqList=True)
+        r1Trimmed = tools.trim_10x_barcode(r1)
+        tools.bwa_index(hapFa)
+        realignedBam = tools.bwa_mem(hapFa, r1Trimmed, r2, outdir + "bwa_aligned_hap" + hap)
+        
+        io.delete_file(outdir+dirname, deleteDirTree=True)
+        io.delete_file(assignedBam)
+        assignedBam = realignedBam
+        for ext in [".sa", ".pac", ".bwt", ".ann", ".amb", ".ann"]:
+            io.delete_file(hapFa + ext)
+
+    hapPolishedFa = tools.pilon_polish(assignedBam, hapFa, outdir, prefix="hap" + hap + ".consensus", 
+                                       changeFile=True, snpIndelOnly=True)
+    tools.samtools_faidx(hapPolishedFa)
+
+    #helper.delete_file(assignedBam)
+    return hapPolishedFa
+
+def haplotype_polish_ref(hap, hapFa, haploBam, outdir, param, realign=True):
+
+    hap = str(hap)
+    reads = split_reads(haploBam)
+
+    random.shuffle(reads["0"])
+    half = math.ceil(len(reads["0"])/2)
+    assignedReads = reads[hap] + reads["0"][:half]
+    assignedBam = tools.samtools_write(assignedReads, outdir + hap + "_polish_input_ref", haploBam)
+
+    if realign:
+        realignedBam = tools.align_pacbio(hapFa, assignedBam, outdir + hap + "_polish_input_ref.realigned")
+        io.delete_file(assignedBam)
+        assignedBam = realignedBam
+        
+    hapPolishedFa = tools.pacbio_polish(assignedBam, hapFa, outdir + "hap" + hap, outputFasta=True)
+    
+    io.delete_file(assignedBam)
+
+    return hapPolishedFa
 
 
 
@@ -486,59 +539,6 @@ def split_reads(bamFile):
             readDict["0"].append(read)
     return readDict
 
-def haplotype_polish_query(hap, hapFa, haploBam, outdir, param, realign=True):
-    hap = str(hap)
-    reads = split_reads(haploBam)
-
-    assignedReads = reads[hap]
-    idSet = {r.query_name for r in assignedReads}
-
-    for r in reads["1" if hap == "2" else "2"] + reads["0"]:
-        if r.query_name in idSet:
-            assignedReads.append(r)
-    
-    assignedBam = tools.samtools_write(assignedReads, outdir + hap + "_polish_input_query", haploBam)
-    
-    if realign:
-        dirname = "10x_hap" + hap
-        r1,r2 = tools.bam2fastq_10x(assignedBam, outdir, dirName=dirname, returnFqList=True)
-        r1Trimmed = tools.trim_10x_barcode(r1)
-        tools.bwa_index(hapFa)
-        realignedBam = tools.bwa_mem(hapFa, r1Trimmed, r2, outdir + "bwa_aligned_hap" + hap)
-        
-        io.delete_file(outdir+dirname, deleteDirTree=True)
-        io.delete_file(assignedBam)
-        assignedBam = realignedBam
-        for ext in [".sa", ".pac", ".bwt", ".ann", ".amb", ".ann"]:
-            io.delete_file(hapFa + ext)
-
-    hapPolishedFa = tools.pilon_polish(assignedBam, hapFa, outdir, prefix="hap" + hap + ".consensus", 
-                                       changeFile=True, snpIndelOnly=True)
-    tools.samtools_faidx(hapPolishedFa)
-
-    #helper.delete_file(assignedBam)
-    return hapPolishedFa
-
-def haplotype_polish_ref(hap, hapFa, haploBam, outdir, param, realign=True):
-
-    hap = str(hap)
-    reads = split_reads(haploBam)
-
-    random.shuffle(reads["0"])
-    half = math.ceil(len(reads["0"])/2)
-    assignedReads = reads[hap] + reads["0"][:half]
-    assignedBam = tools.samtools_write(assignedReads, outdir + hap + "_polish_input_ref", haploBam)
-
-    if realign:
-        realignedBam = tools.align_pacbio(hapFa, assignedBam, outdir + hap + "_polish_input_ref.realigned")
-        io.delete_file(assignedBam)
-        assignedBam = realignedBam
-        
-    hapPolishedFa = tools.pacbio_polish(assignedBam, hapFa, outdir + "hap" + hap, outputFasta=True)
-    
-    io.delete_file(assignedBam)
-
-    return hapPolishedFa
 
 def call_variants_ref(consensusFa, refBam, outdir, param):
         

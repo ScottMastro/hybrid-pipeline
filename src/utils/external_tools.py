@@ -88,7 +88,7 @@ def samtools_fetch(bamFile, region=None, unaligned=True):
         alignments = [x for x in samfile.fetch(region.chrom, region.start, region.end)]
     return alignments
 
-def samtools_write(alignments, prefix, headerBam, makeUnique=False):
+def samtools_write(alignments, prefix, headerBam, makeUnique=False, index=True):
     outName = prefix + ".bam"
 
     # remove redundant reads:
@@ -106,7 +106,9 @@ def samtools_write(alignments, prefix, headerBam, makeUnique=False):
 
     bamFile.close()
     header.close()
-    #samtools_index(outName)
+    
+    if index:
+        samtools_index(outName)
     return outName
 
 
