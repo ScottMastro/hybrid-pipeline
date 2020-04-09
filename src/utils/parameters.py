@@ -40,7 +40,7 @@ class Parameters:
         self.FASTA = None
         self.REF_ALIGNED_READS = None
         self.QUERY_ALIGNED_READS = None
-
+        self.TARGET_CONTIG = None
 
 def get_parameters_hybrid():
     """Parses command line arguments and sets default parameters.
@@ -176,12 +176,15 @@ def get_parameters_polish():
                         help="Verbosity. Default=" + str(p.VERBOSE))
     parser.add_argument("--wait", type=bool, default=p.WAIT,
                     help="Wait for user input at high verbosity levels. Default=False")
+    parser.add_argument("-t", "--tig", type=str, default=p.TARGET_CONTIG,
+                help="Target contig." )
 
     args = parser.parse_args()
     #set parameters from user input
     p.FASTA = args.fasta
     p.QUERY_ALIGNED_READS = args.qbam
     p.REF_ALIGNED_READS = args.rbam
+    p.TARGET_CONTIG = args.tig
 
     p.OUTPUT_DIR = args.outdir
     
@@ -226,6 +229,7 @@ def get_parameters_reference_polish(CFID="CF002"):
     parser.add_argument("-o", "--outdir", type=str, default=p.OUTPUT_DIR,
                     help="Directory where output will be written." )
     
+
     # Parse
     args = parser.parse_args()
 

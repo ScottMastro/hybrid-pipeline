@@ -18,7 +18,13 @@ def main():
     logger.Logger(level=param.VERBOSE, wait=param.WAIT)
 
     logger.Logger().out("Reading fasta...")
-    seqData = fasta.read_fasta(param.FASTA)
+    
+    if param.TARGET_CONTIG is None:
+        seqData = fasta.read_fasta(param.FASTA)
+    else:
+        target = str(param.TARGET_CONTIG)
+        seqData = {target : fasta.fasta_fetch(param.FASTA)}
+        
     tigIds = list(seqData.keys())
     lengthData = {x : len(seqData[x]) for x in tigIds}
     tigIds.sort(key=lambda x: -lengthData[x])

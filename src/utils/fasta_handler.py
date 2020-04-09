@@ -19,6 +19,10 @@ def faidx_fetch(faFile, region):
     fa = pyfaidx.Faidx(faFile)
     return str(fa.fetch(region.chrom, region.start, region.end))
 
+def fasta_fetch(faFile, fid):
+    fa = pyfaidx.Fasta(faFile)
+    return str(fa[fid])
+
 def read_fasta(fasta, toUpper=False):
     """Loads fasta (or gzipped fasta) file into memory with SeqIO.
     Returns dictionary of fasta ID to sequence characters.
