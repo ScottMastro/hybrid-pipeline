@@ -231,7 +231,7 @@ def haplotype_polish_query(hap, hapFa, haploBam, outdir, param, realign=True):
 
     hapPolishedFa = tools.pilon_polish(assignedBam, hapFa, outdir, prefix="hap" + hap + ".consensus", 
                                        changeFile=True, snpIndelOnly=True)
-    tools.samtools_faidx(hapPolishedFa)
+    fasta.index_fasta(hapPolishedFa)
 
     #helper.delete_file(assignedBam)
     return hapPolishedFa
