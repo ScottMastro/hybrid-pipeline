@@ -97,8 +97,8 @@ def polish_contig(tigId, outdir, seqData, lengthData, param):
         realign=True
         
         #optional back align step
-        hap1Fa = tools.rename_fasta(hap1Fa, seqNames[1])
-        hap2Fa = tools.rename_fasta(hap2Fa, seqNames[2])
+        hap1Fa = fasta.rename_single_fasta(hap1Fa, seqNames[1])
+        hap2Fa = fasta.rename_single_fasta(hap2Fa, seqNames[2])
         tools.align_pacbio(consensusFa, hap1Fa, outdir + "hap1_backaligned_refpolished")
         tools.align_pacbio(consensusFa, hap2Fa, outdir + "hap2_backaligned_refpolished")
         
@@ -106,15 +106,15 @@ def polish_contig(tigId, outdir, seqData, lengthData, param):
         hap2Fa = impl.haplotype_polish_query(2, hap2Fa, queryHaploBam, outdir, param, realign)
     
         #optional back align step
-        hap1Fa = tools.rename_fasta(hap1Fa, seqNames[1])
-        hap2Fa = tools.rename_fasta(hap2Fa, seqNames[2])
+        hap1Fa = fasta.rename_single_fasta(hap1Fa, seqNames[1])
+        hap2Fa = fasta.rename_single_fasta(hap2Fa, seqNames[2])
         tools.align_pacbio(consensusFa, hap1Fa, outdir + "hap1_backaligned_refquerypolished")
         tools.align_pacbio(consensusFa, hap2Fa, outdir + "hap2_backaligned_refquerypolished")
 
         niter -=1
     
-    hap1Fa = tools.rename_fasta(hap1Fa, seqNames[1])
-    hap2Fa = tools.rename_fasta(hap2Fa, seqNames[2])
+    hap1Fa = fasta.rename_single_fasta(hap1Fa, seqNames[1])
+    hap2Fa = fasta.rename_single_fasta(hap2Fa, seqNames[2])
 
     
     '''
