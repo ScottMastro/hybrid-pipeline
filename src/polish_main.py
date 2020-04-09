@@ -23,7 +23,7 @@ def main():
         seqData = fasta.read_fasta(param.FASTA)
     else:
         target = str(param.TARGET_CONTIG)
-        seqData = {target : fasta.fasta_fetch(param.FASTA)}
+        seqData = {target : fasta.fasta_fetch(param.FASTA, target)}
         
     tigIds = list(seqData.keys())
     lengthData = {x : len(seqData[x]) for x in tigIds}
