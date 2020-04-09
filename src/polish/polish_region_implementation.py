@@ -109,6 +109,11 @@ def polish_query(targetFa, region, outdir, param, queryReads=None, queryAlignmen
 
 def high_conf_hets(consensusFa, refBam, queryBam, outdir, param):
     
+    vcfFile = outdir + "high_confidence_hets.vcf"
+    if os.path.isfile(vcfFile):
+        print("High confidence heterozygous variants found, skipping step")
+        return vcfFile
+
     longshotVCF = phase_region(consensusFa, refBam, outdir + "phased", writeBams=False)
     longrangerVCF = "/".join(queryBam.split("/")[:-1]) +  "/phased_variants.vcf.gz" 
 
@@ -170,7 +175,7 @@ def high_conf_hets(consensusFa, refBam, queryBam, outdir, param):
 
     highConfidenceVariants = highConfidenceSnps + highConfidenceIndels
     
-    vcfFile = outdir + "high_confidence_hets.vcf"
+    #vcfFile = outdir + "high_confidence_hets.vcf"
     writer = open(vcfFile, "w+")
     writer.write("##fileformat=VCFv4.2\n")
     header = ["#CHROM", "POS", "ID", "REF", "ALT",
