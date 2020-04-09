@@ -10,7 +10,7 @@ import utils.file_handler as io
 import utils.fasta_handler as fasta
 import utils.vcf_annotation as annotator
 from structures.region import SimpleRegion
-import dependencies.external_tools as tools
+import utils.external_tools as tools
 
 def fetch_ref_reads(bamFile, region, outdir, fileSuffix=""):
     refAlignments = tools.samtools_fetch(bamFile, region)

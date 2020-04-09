@@ -2,14 +2,12 @@ import pysam
 import pyfaidx
 
 import subprocess
-import re
-import os
-from Bio import SeqIO
-import glob
-import shutil
-import gzip
+import re, glob, gzip
+import os, shutil
+from . import fasta_handler as fasta
 
-from . import environment as env
+#from . import environment as env
+from . import environment_hpf as env
 
 def parse(command):
     return command.split()
@@ -170,27 +168,6 @@ def reads2fasta(alignments, prefix):
     writer.close()
 
     return fastaFile
-
-def fasta2dict(faFile, toUpper=False):
-    fastaDict = dict()
-    seqs = SeqIO.parse(open(faFile),'fasta')
-    for f in seqs:
-        fastaDict[f.id] = str(f.seq)
-        if toUpper: fastaDict[f.id] = fastaDict[f.id].upper()
-    return fastaDict
-
-def dict2fasta(fastaDict, prefix, toUpper=False, index=True):
-    
-    outFile = prefix + (".fasta" if not prefix.endswith(".fasta") else "")
-    writer = open(outFile, "w+")
-
-    for fid in fastaDict:
-        writer.write(">" + fid + "\n" + \
-                 re.sub("(.{64})", "\\1\n", "".join(fastaDict[fid]), 0, re.DOTALL) + "\n")
-
-    writer.close()
-    if index: samtools_faidx(outFile)
-    return outFile
 
 
 
@@ -520,7 +497,7 @@ def mkref_10x(refFa, svBlacklist=False):
     create_seq_dict(indexDirName + "/fasta/genome.fa")
 
     if svBlacklist:
-        faDict = fasta2dict(refFa)
+        faDict = fasta.read_fasta(refFa)
         blacklist = indexDirName + "/regions/sv_blacklist.bed"
         writer = open(blacklist, 'w')
 
@@ -854,14 +831,14 @@ def construct_graph_msga(faFiles, prefix, normalize=False,
     else:
         faDict = dict()
         for fa in faFiles:
-            d = fasta2dict(fa)
+            d = fasta.read_fasta(fa)
             if rename == None:
                 faDict.update(d)
             else:
                 fid = list(d.keys())[0]
                 faDict[rename.pop(0)] = d[fid]
             
-        combinedFa = dict2fasta(faDict, prefix + "_temp_msga_fasta_")
+        combinedFa = fasta.write_fasta(faDict, prefix + "_temp_msga_fasta_")
 
     msga = cmd + ["msga", "-f", combinedFa]
     if baseSeq is not None:

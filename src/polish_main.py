@@ -1,5 +1,5 @@
 import os, re
-import utils.parameters as parameters
+import parameters
 import utils.log as logger
 import utils.fasta_handler as fasta
 

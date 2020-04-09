@@ -10,7 +10,7 @@ import utils.paf_helper as paf
 import utils.fasta_handler as fasta
 
 from structures.region import SimpleRegion
-import dependencies.external_tools as tools
+import utils.external_tools as tools
 
 def get_region(fork1, fork2, lengthData, q=True):
     

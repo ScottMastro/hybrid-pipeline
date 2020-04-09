@@ -1,6 +1,6 @@
 import os
 import utils.log as logger
-import utils.parameters as parameters
+import parameters
 import utils.file_handler as io
 import utils.fasta_handler as fasta
 

@@ -6,7 +6,7 @@ sys.path.append("..")
 
 import utils.log as logger
 from structures.region import SimpleRegion
-import dependencies.external_tools as tools
+import utils.external_tools as tools
 import utils.fasta_handler as fasta
 
 Q,R,H,HG = "query", "ref", "hybrid", "hg38"
