@@ -47,7 +47,7 @@ def align_query(faFile, queryReads, outdir, param, outName="query_aligned"):
         return longrangerBam
 
     #correct bug in longranger 2.2.2 where hets are sometimes given GT = 1|1 
-        
+
     correctedVCF = re.sub(".gz", "", longrangerVCF)
     annotator.run_correction(longrangerVCF, correctedVCF)
     io.delete_file(longrangerVCF)

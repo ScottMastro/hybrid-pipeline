@@ -840,7 +840,7 @@ def construct_graph_msga(faFiles, prefix, normalize=False,
                 fid = list(d.keys())[0]
                 faDict[rename.pop(0)] = d[fid]
             
-        combinedFa = fasta.write_fasta(faDict, prefix + "_temp_msga_fasta_")
+        combinedFa = fasta.write_fasta(prefix + "_temp_msga_", faDict)
 
     msga = cmd + ["msga", "-f", combinedFa]
     if baseSeq is not None:
