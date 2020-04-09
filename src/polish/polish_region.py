@@ -88,23 +88,12 @@ def polish_contig(tigId, outdir, seqData, lengthData, param):
     refHaploBam, queryHaploBam = impl.phase_consensus(consensusFa, highConfVCF, refBam, queryBam, outdir, param)
 
     hap1Fa, hap2Fa = consensusFa, consensusFa
-
-    
-    
-    
-    
-
-    #get heterozygous variants and phase reads
-    highConfVCF = polisher.high_conf_hets(consensusFa, refBam, queryBam, outdir, param)
-    refHaploBam, queryHaploBam = polisher.phase_consensus(consensusFa, highConfVCF, refBam, queryBam, outdir, param)
-
-    hap1Fa, hap2Fa = consensusFa, consensusFa
     
     niter = 1
     realign = False
     while niter > 0:
-        hap1Fa = polisher.haplotype_polish_ref(1, hap1Fa, refHaploBam, outdir, param, realign)
-        hap2Fa = polisher.haplotype_polish_ref(2, hap2Fa, refHaploBam, outdir, param, realign)
+        hap1Fa = impl.haplotype_polish_ref(1, hap1Fa, refHaploBam, outdir, param, realign)
+        hap2Fa = impl.haplotype_polish_ref(2, hap2Fa, refHaploBam, outdir, param, realign)
         realign=True
         
         #optional back align step
@@ -113,8 +102,8 @@ def polish_contig(tigId, outdir, seqData, lengthData, param):
         tools.align_pacbio(consensusFa, hap1Fa, outdir + "hap1_backaligned_refpolished")
         tools.align_pacbio(consensusFa, hap2Fa, outdir + "hap2_backaligned_refpolished")
         
-        hap1Fa = polisher.haplotype_polish_query(1, hap1Fa, queryHaploBam, outdir, param, realign)
-        hap2Fa = polisher.haplotype_polish_query(2, hap2Fa, queryHaploBam, outdir, param, realign)
+        hap1Fa = impl.haplotype_polish_query(1, hap1Fa, queryHaploBam, outdir, param, realign)
+        hap2Fa = impl.haplotype_polish_query(2, hap2Fa, queryHaploBam, outdir, param, realign)
     
         #optional back align step
         hap1Fa = tools.rename_fasta(hap1Fa, seqNames[1])

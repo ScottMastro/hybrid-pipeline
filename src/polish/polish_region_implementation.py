@@ -44,6 +44,7 @@ def align_query(faFile, queryReads, outdir, param, outName="query_aligned"):
         longrangerVCF, longrangerBam = tools.align_10x(faFile, queryReadsDir, outdir, svBlacklist=True)
     else:
         print("Long Ranger files found, skipping step")
+        return longrangerBam
 
     #correct bug in longranger 2.2.2 where hets are sometimes given GT = 1|1 
         
@@ -185,6 +186,16 @@ def high_conf_hets(consensusFa, refBam, queryBam, outdir, param):
     
     return vcfFile
 
+def phase_consensus(consensusFa, highConfVCF, refBam, queryBam, outdir, param):
+
+    #phase het variants with all reads using whatshap
+    whatshapVCF = tools.whatshap_phase([refBam, queryBam], highConfVCF, consensusFa,
+                                 outdir + "high_confidence",  indels=True, maxCov=17)
+    
+    refHaploBam = tools.whatshap_haplotag(refBam, whatshapVCF, consensusFa)    
+    queryHaploBam = tools.whatshap_haplotag(queryBam, whatshapVCF, consensusFa)
+    
+    return refHaploBam, queryHaploBam
 
 
 
@@ -574,33 +585,6 @@ def call_variants_ref(consensusFa, refBam, outdir, param):
     return mergedVCF
    
 
-def phase_consensus(consensusFa, highConfVCF, refBam, queryBam, outdir, param):
-
-    #phase het variants with all reads using whatshap
-    whatshapVCF = tools.whatshap_phase([refBam, queryBam], highConfVCF, consensusFa,
-                                 outdir + "high_confidence",  indels=True, maxCov=17)
-
-    '''
-    def split_reads(bamFile):
-        prefix = bamFile
-        if prefix.endswith(".bam"): prefix = prefix[:-4]
-            
-        alignments = tools.samtools_fetch(bamFile)
-        A = [a for a in alignments if a.has_tag("HP") and a.get_tag("HP")==1]
-        B = [a for a in alignments if a.has_tag("HP") and a.get_tag("HP")==2]
-        U = [a for a in alignments if not a.has_tag("HP")]
-        
-        bamA = tools.samtools_write(A, prefix + ".A.bam", bamFile)
-        bamB = tools.samtools_write(B, prefix + ".B.bam", bamFile)
-        bamU = tools.samtools_write(U, prefix + ".U.bam", bamFile)
-    
-        return [bamA, bamB, bamU]
-    '''
-    
-    refHaploBam = tools.whatshap_haplotag(refBam, whatshapVCF, consensusFa)    
-    queryHaploBam = tools.whatshap_haplotag(queryBam, whatshapVCF, consensusFa)
-    
-    return refHaploBam, queryHaploBam
 
 
 def phase_reads(consensusFa, highConfVCF, refBam, queryBam, outdir, param):
