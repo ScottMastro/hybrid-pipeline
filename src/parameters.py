@@ -41,6 +41,7 @@ class Parameters:
         self.REF_ALIGNED_READS = None
         self.QUERY_ALIGNED_READS = None
         self.TARGET_CONTIG = None
+        self.KEEP_INTERMEDIATE = False
 
 def get_parameters_hybrid():
     """Parses command line arguments and sets default parameters.
@@ -172,6 +173,9 @@ def get_parameters_polish():
     #Optional
     parser.add_argument("-o", "--outdir", type=str, default=p.OUTPUT_DIR,
                 help="Directory where output will be written." ) 
+    parser.add_argument("-k", "--keep", type=bool, default=p.KEEP_INTERMEDIATE,
+            help="Keep all intermediate files. Default=False" )
+
     parser.add_argument("-v", "--verbose", type=int, default=p.VERBOSE,
                         help="Verbosity. Default=" + str(p.VERBOSE))
     parser.add_argument("--wait", type=bool, default=p.WAIT,
@@ -190,7 +194,8 @@ def get_parameters_polish():
     
     p.VERBOSE = args.verbose
     p.WAIT = args.wait
-    
+    p.KEEP_INTERMEDIATE = args.keep
+
     return p
 
 

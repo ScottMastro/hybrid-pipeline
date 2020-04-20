@@ -8,6 +8,7 @@ import polish.polish_region_implementation as impl
 import utils.file_handler as io
 import utils.paf_helper as paf
 import utils.fasta_handler as fasta
+import utils.file_handler as io
 
 from structures.region import SimpleRegion
 import utils.external_tools as tools
@@ -89,33 +90,44 @@ def polish_contig(tigId, outdir, seqData, lengthData, param):
 
     hap1Fa, hap2Fa = consensusFa, consensusFa
     
-    niter = 1
-    realign = False
-    while niter > 0:
-        hap1Fa = impl.haplotype_polish_ref(1, hap1Fa, refHaploBam, outdir, param, realign)
-        hap2Fa = impl.haplotype_polish_ref(2, hap2Fa, refHaploBam, outdir, param, realign)
-        realign=True
-        
-        #optional back align step
-        hap1Fa = fasta.rename_single_fasta(hap1Fa, seqNames[1])
-        hap2Fa = fasta.rename_single_fasta(hap2Fa, seqNames[2])
-        tools.align_pacbio(consensusFa, hap1Fa, outdir + "hap1_backaligned_refpolished")
-        tools.align_pacbio(consensusFa, hap2Fa, outdir + "hap2_backaligned_refpolished")
-        
-        hap1Fa = impl.haplotype_polish_query(1, hap1Fa, queryHaploBam, outdir, param, realign)
-        hap2Fa = impl.haplotype_polish_query(2, hap2Fa, queryHaploBam, outdir, param, realign)
+    finalFa1, finalFa2 = outdir + "hap1.fasta", outdir + "hap2.fasta"
     
-        #optional back align step
-        hap1Fa = fasta.rename_single_fasta(hap1Fa, seqNames[1])
-        hap2Fa = fasta.rename_single_fasta(hap2Fa, seqNames[2])
-        tools.align_pacbio(consensusFa, hap1Fa, outdir + "hap1_backaligned_refquerypolished")
-        tools.align_pacbio(consensusFa, hap2Fa, outdir + "hap2_backaligned_refquerypolished")
-
-        niter -=1
+    if io.file_exists(finalFa1) and os.path.isfile(finalFa2):
+        print("Polished haplotypes found, skipping step")
+    else:
     
-    hap1Fa = fasta.rename_single_fasta(hap1Fa, seqNames[1])
-    hap2Fa = fasta.rename_single_fasta(hap2Fa, seqNames[2])
+        niter = 1
+        realign = False
+        while niter > 0:
+            hap1Fa = impl.haplotype_polish_ref(1, hap1Fa, refHaploBam, outdir, param, realign)
+            hap2Fa = impl.haplotype_polish_ref(2, hap2Fa, refHaploBam, outdir, param, realign)
+            realign=True
+            
+            if param.KEEP_INTERMEDIATE:
+                #optional back align step
+                hap1Fa = fasta.rename_single_fasta(hap1Fa, seqNames[1])
+                hap2Fa = fasta.rename_single_fasta(hap2Fa, seqNames[2])
+                tools.align_pacbio(consensusFa, hap1Fa, outdir + "hap1_backaligned_refpolished")
+                tools.align_pacbio(consensusFa, hap2Fa, outdir + "hap2_backaligned_refpolished")
+            
+            hap1Fa = impl.haplotype_polish_query(1, hap1Fa, queryHaploBam, outdir, param, realign)
+            hap2Fa = impl.haplotype_polish_query(2, hap2Fa, queryHaploBam, outdir, param, realign)
+        
+            if param.KEEP_INTERMEDIATE:
+                #optional back align step
+                hap1Fa = fasta.rename_single_fasta(hap1Fa, seqNames[1])
+                hap2Fa = fasta.rename_single_fasta(hap2Fa, seqNames[2])
+                tools.align_pacbio(consensusFa, hap1Fa, outdir + "hap1_backaligned_refquerypolished")
+                tools.align_pacbio(consensusFa, hap2Fa, outdir + "hap2_backaligned_refquerypolished")
+    
+            niter -=1
+        
+        io.move_file(hap1Fa, finalFa1)
+        io.move_file(hap2Fa, finalFa2)
 
+        finalFa1 = fasta.rename_single_fasta(finalFa1, seqNames[1])
+        hap2Fa = fasta.rename_single_fasta(hap2Fa, seqNames[2])
+        
     
     '''
     
@@ -130,15 +142,16 @@ def polish_contig(tigId, outdir, seqData, lengthData, param):
     finalVCF = polisher.phase_vcf(consensusFa, consensusVariants, refBam, queryBam, outdir, param)
     '''
     
+    
     fastas = [consensusFa, hap1Fa, hap2Fa]
     graph = tools.construct_graph_msga(fastas, outdir + "graph", normalize=True, renameSeqs=seqNames, baseSeq=seqNames[0])
     tools.index_graph(graph)
     finalVCF = tools.graph_to_vcf(graph, "consensus", "hap", outdir + "graph")
     
-    
     info["time"] = round(time.time() - startTime,1)
     
-    #polisher.clean_directory(outdir)
+    if not param.KEEP_INTERMEDIATE:
+        impl.clean_directory(outdir)
     
     #TODO: CLEAN FINAL VCF, VALIDATE HAPLOTYPE, PHASESETS
  

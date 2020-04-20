@@ -55,6 +55,9 @@ def align_query(faFile, queryReads, outdir, param, outName="query_aligned"):
     longrangerVCF = tools.bgzip(correctedVCF)
     #longrangerVariants = [record for record in vcf.Reader(open(longrangerVCF, "rb"))]
 
+    if not param.KEEP_INTERMEDIATE:
+        io.delete_file(outdir + "refdata-" + outName, deleteDirTree=True)
+
     return longrangerBam
 
 
@@ -99,7 +102,7 @@ def polish_query(targetFa, region, outdir, param, queryReads=None, queryAlignmen
     fasta.index_fasta(polishedFa)
     
     for ext in [".sa", ".pac", ".bwt", ".ann", ".amb", ".ann"]:
-        io.delete_file(pilonFa + ext)
+        io.delete_file(polishedFa + ext)
         
     if deleteAlignments:
         io.delete_file(queryAlignments)      
@@ -200,8 +203,11 @@ def phase_consensus(consensusFa, highConfVCF, refBam, queryBam, outdir, param):
     refHaploBam = tools.whatshap_haplotag(refBam, whatshapVCF, consensusFa)    
     queryHaploBam = tools.whatshap_haplotag(queryBam, whatshapVCF, consensusFa)
     
-    return refHaploBam, queryHaploBam
-
+    if not param.KEEP_INTERMEDIATE:
+        io.delete_file(refBam)
+    
+    return refHaploBam, queryHaploBam        
+    
 
 def haplotype_polish_query(hap, hapFa, haploBam, outdir, param, realign=True):
     hap = str(hap)
@@ -257,57 +263,26 @@ def haplotype_polish_ref(hap, hapFa, haploBam, outdir, param, realign=True):
 
     return hapPolishedFa
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def clean_directory(outdir):
     
-    #fastas
-    io.delete_file(outdir + "unpolished_plusflank.fasta")
-    io.delete_file(outdir + "consensus.fasta.fxi")
-    #helper.delete_file(outdir + "ref_polished.fasta")
-
-    io.delete_file(outdir + "A_polish.consensus.fasta")
-    io.delete_file(outdir + "B_polish.consensus.fasta")
-    
-    #vcfs
-    io.delete_file(outdir + "phased.longshot.vcf")
-    io.delete_file(outdir + "high_confidence_hets.vcf")
-    io.delete_file(outdir + "high_confidence.whatshap.vcf.gz.tbi")
-
-    io.delete_file(outdir + "A_polish.consensus.vcf")
-    io.delete_file(outdir + "B_polish.consensus.vcf")
+    #delete reads
+    io.delete_file(outdir + "10x_reads", deleteDirTree=True)
+    io.delete_file(outdir + "pacbio_reads.bam")
 
 
-    #bams
-    io.delete_file(outdir + "hapA_backaligned.pbmm2.bam")
-    io.delete_file(outdir + "hapB_backaligned.pbmm2.bam")
-    
-    io.delete_file(outdir + "ref_aligned_consensus.pbmm2.bam")
-    #helper.delete_file(outdir + "ref_aligned_consensus.pbmm2.haplotag.bam")
 
-    io.delete_file(outdir + "q_to_consensus.paf")
 
-    #directories
-    io.delete_file(outdir + "sdf/", deleteDirTree=True)
-    io.delete_file(outdir + "refdata-consensus/", deleteDirTree=True)
-    io.delete_file(outdir + "vcfeval_out/", deleteDirTree=True)
+
+
+
+
+
+
+
+
+
+
+
 
 
 

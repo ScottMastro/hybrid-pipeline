@@ -1,7 +1,6 @@
 from pybedtools import BedTool
 import shutil
 import os
-import re
 import pickle as pkl
 import pandas as pd
 
@@ -24,6 +23,9 @@ def make_dir(file, directory):
     if not os.path.exists(directory):
         os.mkdir(directory)
     return directory
+
+def file_exists(file):
+    return os.path.isfile(file)
 
 def delete_file(file, deleteDirTree=False):
     if os.path.isfile(file):
