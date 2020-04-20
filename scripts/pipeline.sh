@@ -1,7 +1,10 @@
 CFID=$1
 BASEDIR="/hpf/largeprojects/tcagstor/projects/cf_assembly_3g/workspace/mastros/hybrid"
+ENV="source ${BASEDIR}/tools/environment.sh"
+$ENV
+
 HG38="/hpf/largeprojects/tcagstor/projects/cf_assembly_3g/workspace/mastros/reference/hg38/hg38.fa.gz"
-HG38_ANNOTATIONS="/hpf/largeprojects/tcagstor/projects/cf_assembly_3g/workspace/mastros/reference/hg38/gene_annotations.gff"
+HG38_ANNOTATIONS="/hpf/largeprojects/tcagstor/projects/cf_assembly_3g/workspace/mastros/reference/hg38/hg38_gencode_v32_knowngene.gff"
 QUEUE_NAME="tcagdenovo"
 PYTHON="${BASEDIR}/tools/python"
 
@@ -25,7 +28,7 @@ if [ ! -f $UNITIGS_BED ]; then
    echo "COULD NOT FIND UNITIGS BED FILE!"
    exit 1
 else
-	$PYTHON $UNITIG_CLEAN $UNITIGS_BED $UNITIGS_BED_CLEANED
+        $PYTHON $UNITIG_CLEAN $UNITIGS_BED $UNITIGS_BED_CLEANED
 fi
 
 UNITIGS_BED=$UNITIGS_BED_CLEANED
@@ -58,7 +61,7 @@ if [ -f $SUMMARY ]; then
    DEPEND_2=""
 else
    JOB="bash $ALIGN_TIGS $REF_FA $QUERY_FA $BLOCKDIR $SUMMARY_PREFIX $QUEUE_NAME"
-   BLOCK_JID=$(echo $JOB | qsub $QUEUE $DEPEND_1 -l nodes=1:ppn=1 -l mem=32g -l vmem=32g -l walltime=23:00:00 -o $JOBOUT -e $JOBOUT -d `pwd` -N align_tigs_${CFID} "-")
+   BLOCK_JID=$(echo $JOB | qsub $QUEUE $DEPEND_1 -l nodes=1:ppn=1 -l mem=32g -l vmem=32g -l walltime=42:00:00 -o $JOBOUT -e $JOBOUT -d `pwd` -N align_tigs_${CFID} "-")
 
    DEPEND_2="-W depend=afterok:${BLOCK_JID}"
 fi
@@ -77,7 +80,7 @@ if [ -f $HYBRID_FA ]; then
    DEPEND_3=""
 else
 
-   JOB="$PYTHON $HYBRID_SCRIPT $SUMMARY $QUERY_FA $REF_FA \
+   JOB="$ENV ; $PYTHON $HYBRID_SCRIPT $SUMMARY $QUERY_FA $REF_FA \
         --confident $UNITIGS_BED -o $HYBRIDDIR"
    HYBRID_JID=$(echo $JOB | qsub $QUEUE $DEPEND_2 -l nodes=1:ppn=1 -l mem=32g -l vmem=32g -l walltime=6:00:00 -o $JOBOUT -e $JOBOUT -d `pwd` -N hybrid_${CFID} "-")
    DEPEND_3="-W depend=afterok:${HYBRID_JID}"
@@ -93,7 +96,7 @@ QUASTDIR=${BASEDIR}/${CFID}/quast
 mkdir -p $QUASTDIR
 
 JOB="module load quast ; quast-lg.py $REF_FA_RAW $QUERY_FA_RAW \
-                         $HYBRID_FA $HYBRID_LEFTOVERS -o $QUASTDIR -r $HG38 -g $HG38_ANNOTATIONS"
+                         $HYBRID_FA $HYBRID_LEFTOVER -o $QUASTDIR -r $HG38 -g $HG38_ANNOTATIONS"
 
 #Options:
 #-o  --output-dir  <dirname>       Directory to store all result files [default: quast_results/results_<datetime>]
@@ -104,4 +107,3 @@ JOB="module load quast ; quast-lg.py $REF_FA_RAW $QUERY_FA_RAW \
 #-t  --threads     <int>           Maximum number of threads [default: 25% of CPUs]
 
 QUAST_JID=$(echo $JOB | qsub $QUEUE $DEPEND_3 -l nodes=1:ppn=8 -l mem=220g -l vmem=220g -l walltime=47:59:00 -o $JOBOUT -e $JOBOUT -d `pwd` -N quast_${CFID} "-")
-

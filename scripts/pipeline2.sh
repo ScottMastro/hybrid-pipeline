@@ -1,5 +1,8 @@
 CFID=$1
 BASEDIR="/hpf/largeprojects/tcagstor/projects/cf_assembly_3g/workspace/mastros/hybrid"
+ENV="source ${BASEDIR}/tools/environment.sh"
+$ENV
+
 HG38="/hpf/largeprojects/tcagstor/projects/cf_assembly_3g/workspace/mastros/reference/hg38/hg38.fa.gz"
 HG38_ANNOTATIONS="/hpf/largeprojects/tcagstor/projects/cf_assembly_3g/workspace/mastros/reference/hg38/gene_annotations.gff"
 QUEUE_NAME="tcagdenovo"
@@ -9,7 +12,7 @@ if [ -z "$QUEUE_NAME" ]; then QUEUE="" ; else QUEUE="-q $QUEUE_NAME"; fi
 
 LONGRANGER_ALN=${BASEDIR}/hybrid-pipeline/scripts/run_longranger.sh
 PBMM2_ALN=${BASEDIR}/hybrid-pipeline/scripts/run_pbmm2.sh
-POLISH_SCRIPT=${BASEDIR}/hybrid-pipeline/src/main_polish.sh
+POLISH_SCRIPT=${BASEDIR}/hybrid-pipeline/src/polish_main.py
 
 JOBOUT=${BASEDIR}/jobout/${CFID}
 mkdir -p $JOBOUT
@@ -67,7 +70,7 @@ else
       echo ${PBMM2_TEMP_DIR}/${READS##*/}.pbmm2.bam >> $BAMLIST
    done
 
-   JOB="module load samtools/1.9 ; samtools merge --threads 16 -b $BAMLIST $PBMM2_BAM $BAMLIST ; samtools index $PBMM2_BAM"
+   JOB="module load samtools/1.9 ; samtools merge --threads 16 -b $BAMLIST $PBMM2_BAM ; samtools index $PBMM2_BAM ; rm -r $PBMM2_TEMP_DIR"
    PBMM2_JID=$(echo $JOB | qsub $QUEUE -W depend=afterok${JID_LIST} -l nodes=1:ppn=16 -l mem=24g -l vmem=24g -l walltime=41:59:00 -o $JOBOUT -e $JOBOUT -d `pwd` -N ${CFID}_pbmm2_merge "-")
    PBMM2_JID=:$PBMM2_JID
 fi
@@ -81,5 +84,14 @@ fi
 echo "STEP 6: POLISHING"
 # =========================================
 
+POLISHDIR=${BASEDIR}/${CFID}/polish
+mkdir -p $POLISHDIR
 
-
+grep ">" CF002/hybrid/hybrid_assembly.fasta | cut -c2- | \
+ while read -r TARGET ; do
+ 
+    #todo: check for output
+ 
+    JOB="$ENV ; $PYTHON $POLISH_SCRIPT $HYBRID_FA $LONGRANGER_BAM $PBMM2_BAM -o $POLISHDIR --tig $TARGET"
+    POLISH_JID=$(echo $JOB | qsub $QUEUE $DEPEND_4 -l nodes=1:ppn=8 -l mem=121g -l vmem=121g -l walltime=71:59:00 -o $JOBOUT -e $JOBOUT -d `pwd` -N ${CFID}_polish "-")
+ done
