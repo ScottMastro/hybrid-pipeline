@@ -6,6 +6,9 @@ BGZIP = "bgzip"
 TABIX = "tabix"
 PICARD="java -Xmx8G -jar /home/scott/bin/picard.jar"
 
+CORES=8
+MEM=16
+
 #https://anaconda.org/bioconda/nucdiff
 #https://github.com/uio-cels/NucDiff
 NUCDIFF="nucdiff"
@@ -35,8 +38,6 @@ CANU = "/home/scott/bin/canu-1.9/Linux-amd64/bin/canu"
 
 #10X TOOLS
 LONGRANGER="/home/scott/bin/longranger-2.2.2/longranger"
-LONGRANGER_CORES=8
-LONGRANGER_MEM=8
 #required for longranger wgs
 #version of GATK must be 3.3-3.8, or 4 except 3.6
 GATK_10x_JAR="/home/scott/bin/gatk-4.0.0.0/gatk-package-4.0.0.0-local.jar"

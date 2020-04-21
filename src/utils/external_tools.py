@@ -514,8 +514,8 @@ def align_10x(refFa, fqDir, prefix, useFreebayes=False, svBlacklist=False):
     
     cmd = parse(env.LONGRANGER)
     gatkJar = str(env.GATK_10x_JAR)
-    cores = str(env.LONGRANGER_CORES)
-    mem = str(env.LONGRANGER_MEM)
+    cores = str(env.CORES)
+    mem = str(env.MEM)
 
     sampleName = ".".join(refFa.split(".")[:-1]).split("/")[-1] + "-longranger"
     cwd=os.getcwd()
@@ -840,9 +840,11 @@ def construct_graph_msga(faFiles, prefix, normalize=False,
                 fid = list(d.keys())[0]
                 faDict[rename.pop(0)] = d[fid]
             
-        combinedFa = fasta.write_fasta(prefix + "_temp_msga_", faDict)
+        combinedFa = fasta.write_fasta(prefix + "_temp_msga_", faDict, index=True)
 
     msga = cmd + ["msga", "-f", combinedFa]
+    msga.extend(["-t", str(env.CORES)])
+
     if baseSeq is not None:
         msga.extend(["-b", baseSeq])
     if bedFile is not None:

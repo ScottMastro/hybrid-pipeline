@@ -1,5 +1,8 @@
 TOOL_DIR="/hpf/largeprojects/tcagstor/projects/cf_assembly_3g/workspace/mastros/hybrid/tools/"
 
+CORES=16
+MEM=121
+
 #COMMON TOOLS
 SAMTOOLS = "samtools"
 BCFTOOLS = "bcftools"
@@ -14,7 +17,7 @@ NUCDIFF="nucdiff"
 
 #ILLUMINA TOOLS
 BWA = "bwa"
-PILON="java -Xmx16G -jar "  + TOOL_DIR + "pilon-1.23.jar"
+PILON="java -Xmx16G -jar " + TOOL_DIR + "pilon-1.23.jar"
 
 #PHASING TOOLS
 WHATSHAP = TOOL_DIR + "whatshap"
@@ -37,8 +40,6 @@ CANU = "canu"
 
 #10X TOOLS
 LONGRANGER=TOOL_DIR + "longranger"
-LONGRANGER_CORES=16
-LONGRANGER_MEM=36
 #required for longranger wgs
 #version of GATK must be 3.3-3.8, or 4 except 3.6
 GATK_10x_JAR=TOOL_DIR + "gatk-package-4.0.0.0-local.jar"

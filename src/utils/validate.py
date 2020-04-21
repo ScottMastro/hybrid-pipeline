@@ -23,6 +23,8 @@ def version(command, name, versionTag="--version"):
 
 
 if __name__== "__main__":
+    print("cores = " + str(env.CORES))
+    print("memory = " + str(env.MEM))
 
     print("ATTEMPTING TO IMPORT PYTHON PACKAGES...")
     import pysam
@@ -76,8 +78,6 @@ if __name__== "__main__":
     #10X TOOLS
     version(env.LONGRANGER, "LONGRANGER", versionTag=None)
     print("Longranger properties:")
-    print("cores = " + str(env.LONGRANGER_CORES))
-    print("memory = " + str(env.LONGRANGER_MEM))
     print("GATK = " + str(env.GATK_10x_JAR), "(exists = " + str(os.path.exists(env.GATK_10x_JAR)) + ")" )
     version(env.BAM2FQ_10X, "BAM2FQ_10X", None)
 

@@ -8,7 +8,6 @@ import polish.polish_region_implementation as impl
 import utils.file_handler as io
 import utils.paf_helper as paf
 import utils.fasta_handler as fasta
-import utils.file_handler as io
 
 from structures.region import SimpleRegion
 import utils.external_tools as tools
