@@ -43,6 +43,10 @@ class Parameters:
         self.TARGET_CONTIG = None
         self.KEEP_INTERMEDIATE = False
         self.ANALYSIS = False
+        
+        # ref polish specific parameters
+        self.ID = "_id_missing_"
+
 
 def get_parameters_hybrid():
     """Parses command line arguments and sets default parameters.
@@ -214,6 +218,9 @@ def get_parameters_reference_polish(CFID="CF002"):
     p.OUTPUT_DIR = "/media/scott/HDD/sickkids/slc9a3/out"
     
     '''
+    
+    p.ID = CFID
+    p.OUTPUT_DIR = "/media/scott/Zapdos/slc9a3_polish/out/" + CFID
 
     p.REF_FA =  "/media/scott/Zapdos/reference/hg38.fa"
     p.READS = "/media/scott/Zapdos/slc9a3_polish/" + CFID + "_slc9a3.bam"
@@ -230,7 +237,10 @@ def get_parameters_reference_polish(CFID="CF002"):
     
     parser.add_argument("reads", metavar="reads", default=p.READS, nargs="?",
                     help="Pacbio reads")
-   
+    
+    parser.add_argument("sampleId", metavar="id", default=p.ID, nargs="?",
+             help="ID for sample")
+
     parser.add_argument("refRegion", metavar="region", default=p.REF_REGION, nargs="?",
                 help="Region to polish, formatted as chrom:start-end")
 
@@ -245,6 +255,7 @@ def get_parameters_reference_polish(CFID="CF002"):
     p.REF_FA = args.refFa
     p.REF_REGION = args.refRegion
     p.READS = args.reads
+    p.ID = args.id
 
     p.OUTPUT_DIR = args.outdir
     
