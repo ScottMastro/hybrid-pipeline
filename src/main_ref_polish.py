@@ -102,10 +102,15 @@ def main_human_reference_polish():
     faDict, faDictOrder, bamDict = dict(), [], dict()
 
     print(param.ID)
-    io.make_dir(param.OUTPUT_DIR)
-    prefix = helper.file_prefix(targetRegion, param)
+    
+    outdir = param.OUTPUT_DIR
+    
+    if param.DOWNSAMPLE is not None and param.DOWNSAMPLE < 1:
+        outdir = outdir + "_downsampled_" + str(param.DOWNSAMPLE)
+    
+    io.make_dir(outdir)
     chromName = re.sub('[^a-zA-Z0-9 \n\.]', '-', targetRegion.chrom)
-    prefix = param.OUTPUT_DIR + "/" + "_".join([chromName, str(targetRegion.start), str(targetRegion.end)])
+    prefix = outdir + "/" + "_".join([chromName, str(targetRegion.start), str(targetRegion.end)])
 
     # get sequence
     seqDict = dict()
@@ -116,15 +121,31 @@ def main_human_reference_polish():
     faDict["HG38"] = regionFa
     faDictOrder.append("HG38")
 
+    bamFile = param.READS
+
+    # downsample
+    if param.DOWNSAMPLE is not None and param.DOWNSAMPLE < 1:
+        alignDict = tools.samtools_fetch(param.READS, asDict=True)
+        qnames = [x for x in alignDict]
+        random.shuffle(qnames)
+        half = math.ceil(len(qnames) * param.DOWNSAMPLE)
+        keepNames = set(qnames[:half])
+
+        filteredAlns = []
+        for qname in keepNames: filteredAlns.extend(alignDict[qname])
+        bamFile = tools.samtools_write(filteredAlns, prefix + "_downsampled", param.READS)
+
+
     # polish with all reads
     niter = 2
     fa = regionFa
+    
     
     for i in range(1,niter+1):
         
         currentPrefix = prefix + "_iter_" + str(i)
 
-        bam = tools.align_pacbio(fa, param.READS, currentPrefix)            
+        bam = tools.align_pacbio(fa, bamFile, currentPrefix)            
         fa = tools.pacbio_polish(bam, fa, currentPrefix, outputFasta=True, chunkSize=5000)
         vcf = currentPrefix + ".consensus.vcf"
 

@@ -38,6 +38,9 @@ def read_fasta(fasta, toUpper=False):
         return str(seq).upper() if toUpper else str(seq)
     
     faDict = dict(zip([str(r.id) for r in records], [get_str(r.seq) for r in records]))
+    faDict = dict(zip([str(r.id) for r in records], [get_str(r.seq) for r in records]))
+
+    
     return faDict
 
 #def write_fasta(fid, sequence, filePath):   

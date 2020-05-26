@@ -46,7 +46,7 @@ class Parameters:
         
         # ref polish specific parameters
         self.ID = "_id_missing_"
-
+        self.DOWNSAMPLE = 1
 
 def get_parameters_hybrid():
     """Parses command line arguments and sets default parameters.
@@ -248,6 +248,9 @@ def get_parameters_reference_polish(CFID="CF002"):
     parser.add_argument("-o", "--outdir", type=str, default=p.OUTPUT_DIR,
                     help="Directory where output will be written." )
     
+    parser.add_argument("-x", "--downsample", type=float, default=p.DOWNSAMPLE,
+                    help="Randomly sample this propotion of the reads." )
+    
 
     # Parse
     args = parser.parse_args()
@@ -255,7 +258,8 @@ def get_parameters_reference_polish(CFID="CF002"):
     p.REF_FA = args.refFa
     p.REF_REGION = args.refRegion
     p.READS = args.reads
-    p.ID = args.id
+    p.ID = args.sampleId
+    p.DOWNSAMPLE = args.downsample
 
     p.OUTPUT_DIR = args.outdir
     
