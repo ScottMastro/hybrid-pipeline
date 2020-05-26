@@ -19,7 +19,7 @@ def rename_file(file, newFile):
     os.rename(file, newFile)
     return newFile
 
-def make_dir(file, directory):
+def make_dir(directory):
     if not os.path.exists(directory):
         os.mkdir(directory)
     return directory

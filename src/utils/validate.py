@@ -1,6 +1,6 @@
 import subprocess
-import hpf_environment as env
-#import environment as env
+#import hpf_environment as env
+import environment as env
 
 def parse(command):
     return command.split()
@@ -57,10 +57,10 @@ if __name__== "__main__":
     
     #PHASING TOOLS
     version(env.WHATSHAP, "WHATSHAP")
-    version(env.HAP_PY, "HAP_PY")
+    #version(env.HAP_PY, "HAP_PY")
     #version(env.PRE_PY, "PRE_PY")
-    print("PRE_PY = " + str(env.PRE_PY), "(exists = " + str(os.path.exists(env.PRE_PY)) + ")" )
-    version(env.RTG, "RTG")
+    #print("PRE_PY = " + str(env.PRE_PY), "(exists = " + str(os.path.exists(env.PRE_PY)) + ")" )
+    #version(env.RTG, "RTG")
     
     #GRAPH TOOLS
     version(env.VG, "VG", versionTag="version")

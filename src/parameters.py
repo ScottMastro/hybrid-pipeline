@@ -42,6 +42,7 @@ class Parameters:
         self.QUERY_ALIGNED_READS = None
         self.TARGET_CONTIG = None
         self.KEEP_INTERMEDIATE = False
+        self.ANALYSIS = False
 
 def get_parameters_hybrid():
     """Parses command line arguments and sets default parameters.
@@ -182,6 +183,8 @@ def get_parameters_polish():
                     help="Wait for user input at high verbosity levels. Default=False")
     parser.add_argument("-t", "--tig", type=str, default=p.TARGET_CONTIG,
                 help="Target contig." )
+    parser.add_argument("-a", "--analysis", type=bool, default=p.ANALYSIS,
+                        help="Verbosity. Default=" + str(p.VERBOSE))
 
     args = parser.parse_args()
     #set parameters from user input
@@ -212,11 +215,12 @@ def get_parameters_reference_polish(CFID="CF002"):
     
     '''
 
-    p.REF_FA =  "/media/scott/Rotom/hybrid2/slc9a3/hg38.fa"
-    p.REF_ALIGNED_READS = "/media/scott/Rotom/hybrid2/slc9a3/" + CFID + ".slc9a3.bam"
-    p.OUTPUT_DIR = "/media/scott/Rotom/hybrid2/slc9a3/out/" + CFID
+    p.REF_FA =  "/media/scott/Zapdos/reference/hg38.fa"
+    p.READS = "/media/scott/Zapdos/slc9a3_polish/" + CFID + "_slc9a3.bam"
+    p.OUTPUT_DIR = "/media/scott/Zapdos/slc9a3_polish/out/" + CFID
 
-    p.REF_REGION = "chr5:393462-696129"
+    #p.REF_REGION = "chr5:393462-696129"
+    p.REF_REGION = "chr5:393462-677667"
 
     parser = argparse.ArgumentParser(description="Reference sequence region polish")
 
@@ -224,8 +228,8 @@ def get_parameters_reference_polish(CFID="CF002"):
     parser.add_argument("refFa", metavar="reference", default=p.REF_FA, nargs="?",
                         help="Reference FASTA file")
     
-    parser.add_argument("refBam", metavar="reads", default=p.REF_ALIGNED_READS, nargs="?",
-                    help="Read BAM aligned to reference")
+    parser.add_argument("reads", metavar="reads", default=p.READS, nargs="?",
+                    help="Pacbio reads")
    
     parser.add_argument("refRegion", metavar="region", default=p.REF_REGION, nargs="?",
                 help="Region to polish, formatted as chrom:start-end")
@@ -240,7 +244,7 @@ def get_parameters_reference_polish(CFID="CF002"):
 
     p.REF_FA = args.refFa
     p.REF_REGION = args.refRegion
-    p.REF_ALIGNED_READS = args.refBam
+    p.READS = args.reads
 
     p.OUTPUT_DIR = args.outdir
     

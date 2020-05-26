@@ -1,14 +1,145 @@
 import sys
 sys.path.append("..")
-import file_handler as io
-import regions as rgn
-import external_tools as tools
-import kmer_tools as kt
+
+import pysam
+import pysamstats
+
+from structures.region import SimpleRegion
+
+#import file_handler as io
+import utils.external_tools as tools
+#import kmer_tools as kt
 import os
 import re
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+import pandas as pd
 
-Q,R,H,HG = "query", "ref", "hybrid", "hg38"
+def moving_average(a, n=1000) :
+    ret = np.cumsum(a, dtype=float)
+    ret[n:] = ret[n:] - ret[:-n]
+    return ret[n - 1:] / n
 
+def plot_coverage(bamFile, title=None):
+    alignments = pysam.AlignmentFile(bamFile)
+    a = pysamstats.load_coverage(alignments, pad=True)
+
+    fig = plt.figure()
+    ax1 = fig.add_axes([0.1, 0.1, 0.8, 0.8])
+    ax2 = fig.add_axes([0.72, 0.72, 0.26, 0.26])
+
+    ax1.set_ylabel("Coverage")
+    ax1.set_xlabel("Position")
+    
+    ax1.set_xlabel("Position")
+    
+    ax2.get_xaxis().set_visible(False)
+
+    ax1.plot(a.pos, a.reads_all, color="black", linewidth=0.5)
+    ax1.set_ylim(bottom=0, top=100)
+    rollingN=10000
+    ax1.plot(moving_average(a.pos, n=rollingN),
+             moving_average(a.reads_all, n=rollingN), 
+             color="red", linewidth=2)
+
+    ax1.axhline(a.reads_all.mean(), color='orange', linewidth=2)
+    ax1.axhline(np.median(a.reads_all), color='blue', linewidth=2)
+    ax1.annotate("MEDIAN", (1, np.median(a.reads_all)), color='blue', ha='left')
+    ax1.annotate("MEAN", (max(a.pos), a.reads_all.mean()), color='orange', ha='right')
+
+    ax2.axhline(a.reads_all.mean(), color='orange', linewidth=2)
+    ax2.axhline(np.median(a.reads_all), color='blue', linewidth=2)
+
+    ax2.plot(a.pos, a.reads_all, color="black", linewidth=0.5)
+    plt.show()
+
+def get_concordance(bamFile, hap=0):
+    alns = tools.samtools_fetch(bamFile)
+
+    cd = dict()
+    for aln in alns:
+        try:
+            if aln.qname not in cd:
+                cd[aln.qname] = []
+                
+            weight = aln.qlen/aln.query_length
+            mc = aln.get_tag("mc")
+            cd[aln.qname].append([weight, mc])
+            
+        except:
+            print("No MC tag found")
+            pass
+
+    concordanceDict = dict()
+    for q in cd:
+        qlist = cd[q]
+        weight = sum([x[0] for x in qlist])
+        
+        mc = sum([x[0]*(x[1]/weight) for x in qlist])
+        concordanceDict[q] = (weight, mc, hap)
+
+    return concordanceDict
+
+def plot_concordance(concordanceList, names, outDir, minConcordance=0.6, image=".svg"):
+
+    mc, n, hap, mean = [], [], [], []
+    for concordance, name in zip(concordanceList, names):
+        mcList = [concordance[c][1] for c in concordance if concordance[c][1] > minConcordance]
+        mc.extend(mcList)
+        hp = [concordance[c][2] for c in concordance if concordance[c][1] > minConcordance]
+        hap.extend(hp)
+        mean.append(np.mean(mcList))
+        n.extend([name for c in mcList])
+    
+    plotDf = pd.DataFrame({ "mc" : mc, "name" : n, "hap" : hap})
+
+    sns.set(rc={'figure.figsize':(11.7,8.27)})
+
+    sns.set(font_scale=1.5)
+    sns.set_style("whitegrid")
+
+    ax = sns.catplot(x="name", y="mc", hue="hap", kind="point",
+                     data=plotDf, palette="muted", 
+                     size=10, sym="", edgecolor='black',
+                     ci=95, dodge=0.2, join=False,
+                     capsize=.1, errwidth=4 )
+    ax.set(ylabel="Mapped Concordance Percentage", xlabel="",
+           title="PacBio Read Concordance")
+
+    legend = ax._legend
+
+    newLabels = ['Haplotype 1', 'Haplotype 2']
+    for t, l in zip(legend.texts, newLabels): t.set_text(l)
+    legend.set_title("Reads")
+    
+    ax.savefig(outDir + "pacbio_concordance" + image)
+
+def get_coverage(bamFiles, haplotypes, outDir, image=".svg"):
+    
+    for bamFile, name in zip(bamFiles, haplotypes):
+        alignments = pysam.AlignmentFile(bamFile)
+        a = pysamstats.load_coverage(alignments, pad=True)
+        plt.plot(moving_average(a.pos, 1000), 
+                 moving_average(a.reads_all, 1000), label=name)
+
+    plt.savefig(outDir + "coverage" + image)
+
+
+'''
+def get_alignment_stats(bamFile, name):
+    bamFile='/media/scott/Zapdos/out/scaff42/bwa_aligned.sorted.bam'
+    bamFile='/media/scott/Zapdos/out/scaff42/analysis.pbmm2.bam'
+
+    alignments = pysam.AlignmentFile(bamFile)
+    plot_coverage(alignments)
+    alns = tools.samtools_fetch(bamFile)
+    alnInfo = AlignmentInfo(alns)
+    print("# alignments: " + str(alignments.count()))
+    
+    for rec in pysamstats.stat_coverage(alignments):
+        print(rec['chrom'], rec['pos'], rec['reads_all'], rec['reads_pp'])
+'''
 class AlignmentInfo:
 
     def _parse_cigar(self, aln):
@@ -34,10 +165,11 @@ class AlignmentInfo:
         self.alen = [aln.alen for aln in alns]
         self.qsize = alns[0].infer_query_length() if len(alns) > 0 else 0
         self.strand = [-1 if aln.is_reverse else 1 for aln in alns]
-        self.regions = [rgn.SimpleRegion(aln.reference_name, aln.reference_start, aln.reference_end) for aln in alns]                    
+        self.regions = [SimpleRegion(aln.reference_name, aln.reference_start, aln.reference_end) for aln in alns]                    
 
         self.cigars = [self._parse_cigar(aln) for aln in alns]
-        self.compressedIndels = [aln.cigarstring.count("I") + aln.cigarstring.count("D") for aln in alns]
+        #self.compressedIndels = [aln.cigarstring.count("I") + aln.cigarstring.count("D") for aln in alns]
+        
         self.concordance = self._get_tag("mc", alns)
         self.editDist = self._get_tag("NM", alns)
 
@@ -97,7 +229,7 @@ class AlignmentInfo:
                 excludeEndSize = max([region.end for region in excludeEnd]) - min([region.start for region in excludeEnd])
     
                 #try removing start alignment
-                if excludeStartSize < excludeEndSize:
+                if excludealnsStartSize < excludeEndSize:
                     s = sum([len(region) for region in excludeStart])
                     if s/totalSize > misalignTolerance:
                         chromRegion = excludeStart
@@ -124,12 +256,33 @@ class AlignmentInfo:
             
         #print(rsize, self.qsize*tolerance, self.qsize/tolerance)
         if rsize <= self.qsize*sizeTolerance and rsize >= self.qsize/sizeTolerance:
-            return rgn.SimpleRegion(chrom, start, end)
+            return SimpleRegion(chrom, start, end)
         return False
     
     #def __len__(self):
     #def __repr__(self):
     #def __str__(self):
+
+
+def N50(alns):
+    alns.sort(key=lambda x: x.alen, reverse=True)
+    alenSum = sum([aln.alen for aln in alns])
+    
+    target = alenSum/2
+    cumSum = 0
+    index = None
+    for i,aln in enumerate(alns):
+        cumSum += aln.alen
+        if cumSum > target:
+            index = i
+            break
+        
+    if index is None:
+        return None
+    return alns[index].alen
+
+
+Q,R,H,HG = "query", "ref", "hybrid", "hg38"
 
 
 def ref_genome_assessment(seqDict, outdir, param, requireContinuous, retryTolerance=None):
@@ -219,22 +372,6 @@ def sequence_assessment(seqDict, param):
 
     return info
 
-def N50(alns):
-    alns.sort(key=lambda x: x.alen, reverse=True)
-    alenSum = sum([aln.alen for aln in alns])
-    
-    target = alenSum/2
-    cumSum = 0
-    index = None
-    for i,aln in enumerate(alns):
-        cumSum += aln.alen
-        if cumSum > target:
-            index = i
-            break
-        
-    if index is None:
-        return None
-    return alns[index].alen
       
 def make_read_dict(alns):
     readDict = {aln.qname : [] for aln in alns}

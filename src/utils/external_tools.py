@@ -1,13 +1,14 @@
 import pysam
 import pyfaidx
+import copy
 
 import subprocess
 import re, glob, gzip
 import os, shutil
 from . import fasta_handler as fasta
 
-#from . import environment as env
-from . import environment_hpf as env
+from . import environment as env
+#from . import environment_hpf as env
 
 def parse(command):
     return command.split()
@@ -80,12 +81,20 @@ def samtools_subset(bamFile, region, prefix):
     samtools_index(outName)
     return outName
 
-def samtools_fetch(bamFile, region=None, unaligned=True):
+def samtools_fetch(bamFile, region=None, unaligned=True, asDict=False):
     samfile = pysam.AlignmentFile(bamFile, "rb")
     if region is None:
         alignments = [x for x in samfile.fetch(until_eof=unaligned)]
     else:
         alignments = [x for x in samfile.fetch(region.chrom, region.start, region.end)]
+    
+    if asDict:
+        alignDict = dict()
+        for a in alignments:
+            if a.qname not in alignDict: alignDict[a.qname] = []
+            alignDict[a.qname].append(a)
+        return alignDict
+
     return alignments
 
 def samtools_write(alignments, prefix, headerBam, makeUnique=False, index=True):
@@ -220,7 +229,7 @@ def pblat_index(vcfFile):
 #longshot
 #========================================================
 
-LONGSHOT_BAM_PREFIX = ".longshot"
+LONGSHOT_BAM_SUFFIX = ".longshot.bam"
 
 def longshot_genotype(bamFile, refFa, prefix, region=None, coverageAware=True, writeBams=False):
     
@@ -232,7 +241,9 @@ def longshot_genotype(bamFile, refFa, prefix, region=None, coverageAware=True, w
         longshot.append("-A")
     
     if writeBams:
-        longshot.extend(["--hap_bam_prefix", prefix + LONGSHOT_BAM_PREFIX])
+        #old version of longshot
+        #longshot.extend(["--hap_bam_prefix", prefix + LONGSHOT_BAM_PREFIX])
+        longshot.extend(["--out_bam", prefix + LONGSHOT_BAM_SUFFIX])
 
     #force overwrite of output file
     longshot.append("-F")
@@ -243,30 +254,63 @@ def longshot_genotype(bamFile, refFa, prefix, region=None, coverageAware=True, w
     longshot.extend(["--bam", bamFile, "--ref", refFa, "--out", outName])
     subprocess.call(longshot)
     
+    
     if writeBams:
+        '''
         bamFilePrefix = prefix + LONGSHOT_BAM_PREFIX
-        hpA= bamFilePrefix + ".hap1.bam"
+        hpA = bamFilePrefix + ".hap1.bam"
         hpB = bamFilePrefix + ".hap2.bam"
         unphased = bamFilePrefix + ".unassigned.bam"
         samtools_index(hpA)
         samtools_index(hpB)
         samtools_index(unphased)
-        
+        '''
+        samtools_index(prefix + LONGSHOT_BAM_SUFFIX)
+
     return outName
 
-def get_longshot_phased_reads(prefix):
-    '''
-    --hap_bam_prefix
-    Write haplotype-separated reads to 3 bam files using this prefix:
-    <prefix>.hap1.bam, <prefix>.hap2.bam, <prefix>.unassigned.bam
-    '''
+def get_longshot_phased_reads(prefix, keepOriginal=False):
    
+    #old version of longshot
+    #--hap_bam_prefix
+    #Write haplotype-separated reads to 3 bam files using this prefix:
+    #<prefix>.hap1.bam, <prefix>.hap2.bam, <prefix>.unassigned.bam
+
+    '''
     bamFilePrefix = prefix + LONGSHOT_BAM_PREFIX
     h1= bamFilePrefix + ".hap1.bam"
     h2 = bamFilePrefix + ".hap2.bam"
     unphased = bamFilePrefix + ".unassigned.bam"
+    '''
+
+    bamFile = prefix + LONGSHOT_BAM_SUFFIX 
+    hap = {x:[] for x in ["0","1","2"]}
+
+    
+    for read in samtools_fetch(bamFile):
+        try:
+            hp = str(read.get_tag("HP"))
+        except:
+            hp = "0"
         
-    return [h1, h2, unphased]
+        hap[hp].append(read)
+        
+    h1 = prefix + ".longshot.hap1"
+    h2 = prefix + ".longshot.hap2"
+    unphased = prefix + ".longshot.unassigned"
+
+    samtools_write(hap["1"], h1, bamFile)
+    samtools_write(hap["2"], h2, bamFile)
+    samtools_write(hap["0"], unphased, bamFile)
+    
+    if not keepOriginal:
+        try:
+            os.remove(bamFile)
+            os.remove(bamFile + ".bai")
+        except:
+            pass
+        
+    return [x+".bam" for x in (h1, h2, unphased)]
 
 #whatshap
 #========================================================
@@ -674,6 +718,73 @@ def align_paf_lenient(refFa, readsFile, prefix):
     return align_paf(refFa, readsFile, prefix, r=10000, asm="asm10", secondary=False)
 def align_paf_very_lenient(refFa, readsFile, prefix):
     return align_paf(refFa, readsFile, prefix, r=20000, asm="asm20", secondary=False)
+
+def paf_liftover(pafFile, regions, minMapQuality=5, maxDivergance=1, minAlnLen=2500):
+    '''
+    -q INT    min mapping quality [5]
+    -l INT    min alignment length [50000]
+    -d FLOAT  max sequence divergence (>=1 to disable) [1]
+    '''
+    cmd = parse(env.PAFTOOLS)
+    bedFile = os.path.dirname(os.path.realpath(pafFile)) + "/_tempbed_.bed"
+    
+    if not isinstance(regions, list): regions = [regions]
+
+    f = open(bedFile, "w")
+    for region in regions:
+        f.write("\t".join([str(x) for x in (region.chrom, region.start, region.end)]) + "\n")
+    f.close()
+    
+    paftoolsLiftover = cmd + ["liftover"]  + \
+                    ["-d", str(maxDivergance)] + \
+                    ["-l", str(minAlnLen)] + \
+                    ["-q", str(minMapQuality)]
+
+    paftoolsLiftover.extend([pafFile])
+    paftoolsLiftover.extend([bedFile])
+    
+    outFile = os.path.dirname(os.path.realpath(pafFile)) + "/_result_.bed"
+
+    writer = open(outFile, 'w+')
+    subprocess.call(paftoolsLiftover, stdout=writer)
+    writer.close()
+
+    liftover = []    
+    for line in open(outFile, "r"):
+        r = copy.deepcopy(regions[0])
+        s = line.split("\t")
+        r.chrom = s[0] ; r.start = int(s[1]); r.end = int(s[2])
+        liftover.append(r)
+
+
+    #todo: outfile missing matches?
+    os.remove(bedFile)
+    os.remove(outFile)
+
+    return liftover
+
+def paf_call(pafFile, referenceFa, prefix, vcfSample="sample", minAlnLen=2500):
+    '''
+      -f FILE   reference sequences (enabling VCF output) [null]
+      -s NAME   sample name in VCF header [sample]
+    '''
+    cmd = parse(env.PAFTOOLS)
+
+    paftoolsCall = cmd + ["call"]  + \
+                    ["-f", str(referenceFa)] + \
+                    ["-L", str(minAlnLen)] + \
+                    ["-s", str(vcfSample)]
+
+    paftoolsCall.extend([pafFile])
+    
+    outFile = prefix + ".vcf"
+
+    print(" ".join(paftoolsCall) )
+    writer = open(outFile, 'w+')
+    subprocess.call(paftoolsCall, stdout=writer)
+    writer.close()
+
+    return outFile
 
 
 #canu

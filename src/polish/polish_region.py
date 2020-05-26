@@ -54,6 +54,9 @@ def get_high_confidence_regions(consensusFa, blockPath, outdir, seqData):
     io.delete_file(qFa)
     return qPafRegions
 
+    
+    
+    
 def polish_contig(tigId, outdir, seqData, lengthData, param):
     cd = os.getcwd()
     os.chdir(outdir)
@@ -141,19 +144,21 @@ def polish_contig(tigId, outdir, seqData, lengthData, param):
     finalVCF = polisher.phase_vcf(consensusFa, consensusVariants, refBam, queryBam, outdir, param)
     '''
     
-    
     fastas = [consensusFa, hap1Fa, hap2Fa]
     graph = tools.construct_graph_msga(fastas, outdir + "graph", normalize=True, renameSeqs=seqNames, baseSeq=seqNames[0])
     tools.index_graph(graph)
     finalVCF = tools.graph_to_vcf(graph, "consensus", "hap", outdir + "graph")
     
-    info["time"] = round(time.time() - startTime,1)
+    info["time"] = round(time.time() - startTime, 1)
     
     if not param.KEEP_INTERMEDIATE:
         impl.clean_directory(outdir)
     
     #TODO: CLEAN FINAL VCF, VALIDATE HAPLOTYPE, PHASESETS
  
+    if param.ANALYSIS:
+        impl.analyze_contig(hybridFa, consensusFa, hap1Fa, hap2Fa, tigId, outdir, param)
+    
     os.chdir(cd)
 
     return finalVCF

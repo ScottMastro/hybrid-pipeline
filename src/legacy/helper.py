@@ -5,10 +5,6 @@ import os.path
 import re
 import os
 
-def file_prefix(region, param):
-    chromName = re.sub('[^a-zA-Z0-9 \n\.]', '-', region.chrom)
-    
-    return param.OUTPUT_DIR + "/" + "_".join([chromName, str(region.start), str(region.end)])
 
 def contig_fasta(tigName, seqData, param):
     fastaPrefix = param.OUTPUT_DIR + "/" + tigName + "_full"

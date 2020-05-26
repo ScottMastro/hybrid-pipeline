@@ -30,6 +30,8 @@ GRAPHVIZ_DOT="dot"
 
 #PACBIO TOOLS
 MM2 = "/home/scott/bin/minimap2-2.17_x64-linux/minimap2"
+PAFTOOLS = "k8 /home/scott/bin/minimap2-2.17_x64-linux/paftools.js"
+
 PBMM2 = "pbmm2"
 LONGSHOT = "longshot"
 PBSV = "pbsv"
