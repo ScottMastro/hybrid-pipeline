@@ -9,6 +9,7 @@ import ref_polish_helper as helper
 #import analysis.ref_polish_analysis as analyzer
 #import variants as var
 
+'''
 def make_haplo_vcfs():
     
     param = parameters.get_parameters_reference_polish()
@@ -54,22 +55,21 @@ def make_haplo_vcfs():
         variantSet.shift_all(region.start, region.chrom)
         variantSet.write_vcf(phasedVcf)
 
-        '''
-        vcfA = variantSetA.write_vcf(prefix + "_hapA.vcf")
-        vcfB = variantSetB.write_vcf(prefix + "_hapB.vcf")
+        #vcfA = variantSetA.write_vcf(prefix + "_hapA.vcf")
+        #vcfB = variantSetB.write_vcf(prefix + "_hapB.vcf")
 
-        vcfAPhased = tools.whatshap_phase([alignedBam], vcfA, regionFa, prefix + "_A", indels=False)
-        vcfBPhased = tools.whatshap_phase([alignedBam], vcfB, regionFa, prefix + "_B", indels=False)
+        #vcfAPhased = tools.whatshap_phase([alignedBam], vcfA, regionFa, prefix + "_A", indels=False)
+        #vcfBPhased = tools.whatshap_phase([alignedBam], vcfB, regionFa, prefix + "_B", indels=False)
         
-        whVariantSetA = var.vcf_to_variantcallset(vcfAPhased)
-        whVariantSetB = var.vcf_to_variantcallset(vcfBPhased)
+        #whVariantSetA = var.vcf_to_variantcallset(vcfAPhased)
+        #whVariantSetB = var.vcf_to_variantcallset(vcfBPhased)
 
-        whVariantSetA.shift_all(region.start, region.chrom)
-        whVariantSetB.shift_all(region.start, region.chrom)
+        #whVariantSetA.shift_all(region.start, region.chrom)
+        #whVariantSetB.shift_all(region.start, region.chrom)
 
-        vcfA = whVariantSetA.write_vcf(prefix + "_A.whatshap.phase.vcf")
-        vcfB = whVariantSetB.write_vcf(prefix + "_B.whatshap.phase.vcf")
-        ''' 
+        #vcfA = whVariantSetA.write_vcf(prefix + "_A.whatshap.phase.vcf")
+        #vcfB = whVariantSetB.write_vcf(prefix + "_B.whatshap.phase.vcf")
+''' 
     
 def main_human_reference_polish():
     
