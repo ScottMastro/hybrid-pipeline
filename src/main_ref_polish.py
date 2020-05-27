@@ -125,55 +125,67 @@ def main_human_reference_polish():
 
     # downsample
     if param.DOWNSAMPLE is not None and param.DOWNSAMPLE < 1:
-        alignDict = tools.samtools_fetch(param.READS, asDict=True)
-        qnames = [x for x in alignDict]
-        random.shuffle(qnames)
-        half = math.ceil(len(qnames) * param.DOWNSAMPLE)
-        keepNames = set(qnames[:half])
-
-        filteredAlns = []
-        for qname in keepNames: filteredAlns.extend(alignDict[qname])
-        bamFile = tools.samtools_write(filteredAlns, prefix + "_downsampled", param.READS)
+        
+        if io.file_exists(prefix + "_downsampled.bam"):
+            bamFile = prefix + "_downsampled.bam"
+        else:
+            alignDict = tools.samtools_fetch(param.READS, asDict=True)
+            qnames = [x for x in alignDict]
+            random.shuffle(qnames)
+            half = math.ceil(len(qnames) * param.DOWNSAMPLE)
+            keepNames = set(qnames[:half])
+    
+            filteredAlns = []
+            for qname in keepNames: filteredAlns.extend(alignDict[qname])
+            bamFile = tools.samtools_write(filteredAlns, prefix + "_downsampled", param.READS)
 
 
     # polish with all reads
     niter = 2
     fa = regionFa
     
+    if io.file_exists(prefix + ".polished.fasta"):
+        polishedFa = prefix + ".polished.fasta"
+    else:
+        for i in range(1,niter+1):
+            
+            currentPrefix = prefix + "_iter_" + str(i)
     
-    for i in range(1,niter+1):
-        
-        currentPrefix = prefix + "_iter_" + str(i)
-
-        bam = tools.align_pacbio(fa, bamFile, currentPrefix)            
-        fa = tools.pacbio_polish(bam, fa, currentPrefix, outputFasta=True, chunkSize=5000)
-        vcf = currentPrefix + ".consensus.vcf"
-
-        io.delete_file(vcf)
-        io.delete_file(bam)
-
-    polishedFa = io.rename_file(fa, prefix + ".polished.fasta")
-    io.rename_file(fa + ".fai", prefix + ".polished.fasta.fai")
+            bam = tools.align_pacbio(fa, bamFile, currentPrefix)            
+            fa = tools.pacbio_polish(bam, fa, currentPrefix, outputFasta=True, chunkSize=5000)
+            vcf = currentPrefix + ".consensus.vcf"
+    
+            io.delete_file(vcf)
+            io.delete_file(bam)
+    
+        polishedFa = io.rename_file(fa, prefix + ".polished.fasta")
+        io.rename_file(fa + ".fai", prefix + ".polished.fasta.fai")
 
     faDict["Polished"] = polishedFa
     faDictOrder.append("Polished")
 
     # phase reads
-    polishedBam = tools.align_pacbio(polishedFa, param.READS, prefix + "_consensus")
-    
-    alignDict = tools.samtools_fetch(polishedBam, asDict=True)
-    lenDict = dict()
-    lenDict = { qname : sum([x.qlen for x in alignDict[qname]]) for qname in alignDict}
+    if io.file_exists(prefix + ".longshot.vcf"):
+        phasedVCF = prefix + ".longshot.vcf"
+    else:
 
-    LENGTH_THRESH=3000
+        polishedBam = tools.align_pacbio(polishedFa, param.READS, prefix + "_consensus")
+        
+        alignDict = tools.samtools_fetch(polishedBam, asDict=True)
+        lenDict = dict()
+        lenDict = { qname : sum([x.qlen for x in alignDict[qname]]) for qname in alignDict}
     
-    filteredAlns = []
-    for qname in lenDict:
-        if lenDict[qname] > LENGTH_THRESH: filteredAlns.extend(alignDict[qname])
+        LENGTH_THRESH=3000
+        
+        filteredAlns = []
+        for qname in lenDict:
+            if lenDict[qname] > LENGTH_THRESH: filteredAlns.extend(alignDict[qname])
+        
+        filteredBam = tools.samtools_write(filteredAlns, prefix + "_filtered", polishedBam)
     
-    filteredBam = tools.samtools_write(filteredAlns, prefix + "_filtered", polishedBam)
-
-    phasedVCF = tools.longshot_genotype(filteredBam, polishedFa, prefix, writeBams=True)
+        phasedVCF = tools.longshot_genotype(filteredBam, polishedFa, prefix, writeBams=True)
+        
+    
     phaseblocks = helper.phaseblock_split(phasedVCF)
     
     bamA, bamB, bamUnphased = tools.get_longshot_phased_reads(prefix)
@@ -210,14 +222,20 @@ def main_human_reference_polish():
 
         return finalFa
 
-    faA_ = haplo_polish(polishedFa, bamA, prefix + "hapA_inter", niter=2, chunkSize=5000)
-    faA = haplo_polish(faA_, bamA, prefix + "hapA", niter=2)
+    if io.file_exists(prefix + "hapA.polished.fasta"):
+        faA = prefix + "hapA.polished.fasta"
+    else:
+        faA_ = haplo_polish(polishedFa, bamA, prefix + "hapA_inter", niter=2, chunkSize=5000)
+        faA = haplo_polish(faA_, bamA, prefix + "hapA", niter=2)
 
     faDict["Haplotype A"] = faA
     faDictOrder.append("Haplotype A")
 
-    faB_ = haplo_polish(polishedFa, bamB, prefix + "hapB_inter", niter=2, chunkSize=5000)
-    faB = haplo_polish(faB_, bamB, prefix + "hapB", niter=2)
+    if io.file_exists(prefix + "hapB.polished.fasta"):
+        faA = prefix + "hapB.polished.fasta"
+    else:
+        faB_ = haplo_polish(polishedFa, bamB, prefix + "hapB_inter", niter=2, chunkSize=5000)
+        faB = haplo_polish(faB_, bamB, prefix + "hapB", niter=2)
 
     faDict["Haplotype B"] = faB
     faDictOrder.append("Haplotype B")
@@ -269,6 +287,11 @@ def main_human_reference_polish():
     tools.align_pacbio(param.REF_FA, bamB, prefix + "_h2_hg38")
     tools.align_pacbio(param.REF_FA, bamUnphased, prefix + "_unphased_hg38")
 
+    tools.align_pacbio(backFa, polishedFa, prefix + "_backaligned_polishAll")
+    tools.align_pacbio(backFa, polishedFaA, prefix + "_backaligned_polishA1")
+    tools.align_pacbio(backFa, polishedFaA2, prefix + "_backaligned_polishA2")
+    tools.align_pacbio(backFa, polishedFaB, prefix + "_backaligned_polishB1")
+    tools.align_pacbio(backFa, polishedFaB2, prefix + "_backaligned_polishB2")
 
 
 '''
