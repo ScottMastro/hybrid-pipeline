@@ -283,6 +283,14 @@ def get_longshot_phased_reads(prefix, keepOriginal=False):
     unphased = bamFilePrefix + ".unassigned.bam"
     '''
 
+    h1 = prefix + ".longshot.hap1"
+    h2 = prefix + ".longshot.hap2"
+    unphased = prefix + ".longshot.unassigned"
+
+    if os.path.isfile(h1 +".bam" ) and os.path.isfile(h2 +".bam" ) and \
+        os.path.isfile(unphased +".bam" ):
+            return [x+".bam" for x in (h1, h2, unphased)]
+
     bamFile = prefix + LONGSHOT_BAM_SUFFIX 
     hap = {x:[] for x in ["0","1","2"]}
 
@@ -295,9 +303,6 @@ def get_longshot_phased_reads(prefix, keepOriginal=False):
         
         hap[hp].append(read)
         
-    h1 = prefix + ".longshot.hap1"
-    h2 = prefix + ".longshot.hap2"
-    unphased = prefix + ".longshot.unassigned"
 
     samtools_write(hap["1"], h1, bamFile)
     samtools_write(hap["2"], h2, bamFile)

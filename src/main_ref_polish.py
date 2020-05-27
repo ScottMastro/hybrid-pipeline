@@ -182,7 +182,6 @@ def main_human_reference_polish():
             if lenDict[qname] > LENGTH_THRESH: filteredAlns.extend(alignDict[qname])
         
         filteredBam = tools.samtools_write(filteredAlns, prefix + "_filtered", polishedBam)
-    
         phasedVCF = tools.longshot_genotype(filteredBam, polishedFa, prefix, writeBams=True)
         
     
