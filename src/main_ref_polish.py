@@ -231,7 +231,7 @@ def main_human_reference_polish():
     faDictOrder.append("Haplotype A")
 
     if io.file_exists(prefix + "hapB.polished.fasta"):
-        faA = prefix + "hapB.polished.fasta"
+        faB = prefix + "hapB.polished.fasta"
     else:
         faB_ = haplo_polish(polishedFa, bamB, prefix + "hapB_inter", niter=2, chunkSize=5000)
         faB = haplo_polish(faB_, bamB, prefix + "hapB", niter=2)
