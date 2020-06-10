@@ -9,6 +9,19 @@ genome <- filterChromosomes(genome, chr.type="canonical")
 chrs = as.vector(genome@seqnames@values)
 width = genome@ranges@width
 
+get_hg38_gaps <- function(){
+  gaps = read.csv("gap.txt", sep="\t", header=FALSE)
+  centromeres = read.csv("centromeres.txt", sep="\t", header=FALSE)
+  
+  cols = c("id", "chr", "start", "end")
+  
+  names(gaps) = c("id", "chr", "start", "end", "X", "N", "len", "type", "Y")
+  names(centromeres) = c("X", "chr", "start", "end", "id")
+  gaps = gaps[,cols]
+  centromeres = centromeres[,cols]
+  gaps <- rbind(gaps, centromeres) 
+  return(gaps)
+}
 
 empty_data <- function(w=1e5){
   
@@ -22,6 +35,30 @@ empty_data <- function(w=1e5){
   return(df)
 }
 
+get_quast_alignments <- function(dir, target){
+  
+  target.file <- paste(dir, 
+                       list.files(path=dir, pattern=target, recursive=TRUE),
+                       sep="/")
+  
+  if (file.exists(target.file)){
+    
+    alignments = read.csv(sep="\t", target.file)
+    alignments = alignments[! is.na(alignments$IDY), ]
+    x = str_split(alignments$Reference, "_", n=2)
+    chroms = unlist(lapply(x, `[[`, 1))
+    alignments$chr = chroms
+    alignments = alignments[! grepl("rand", alignments$Reference, fixed=T),]
+    alignments$S1 = strtoi(alignments$S1)
+    alignments$E1 = strtoi(alignments$E1)
+    alignments$S2 = strtoi(alignments$S2)
+    alignments$E2 = strtoi(alignments$E2)
+    alignments <- alignments[order(alignments$chr, alignments$S1),]
+    return (alignments)
+  }
+  
+  return(NA)
+}
 top_contigs <- function(aln, n=50){
   
   sorted <- aln[order(-aln$E2),]

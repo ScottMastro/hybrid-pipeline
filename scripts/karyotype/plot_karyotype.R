@@ -1,53 +1,215 @@
 source("karyotype_helper.R")
 
-#quast.directory="D:/out/quast"
-quast.directory="C:/Users/scott/Desktop/quast/quast_alignments"
+quast.directory="D:/out/quast"
+#quast.directory="C:/Users/scott/Desktop/quast/quast_alignments"
 
-supernova.target="supernova_alignments.tsv"
-canu.target="supernova_alignments.tsv"
-hybrid.target="hybrid_alignments.tsv"
-
+supernova.target="*pseudohap.tsv"
+canu.target="*contigs.tsv"
+hybrid.target="*hybrid_assembly.tsv"
 
 quast.files <- list.files(path=quast.directory, full.names=TRUE, recursive=FALSE)
+NSAMPLES=32
 
-get_quast_alignments_ <- function(dir){
-  alignments = read.csv(sep="\t", dir)
-  alignments = alignments[! is.na(alignments$IDY), ]
-  x = str_split(alignments$Reference, "_", n=2)
-  chroms = unlist(lapply(x, `[[`, 1))
-  alignments$chr = chroms
-  alignments = alignments[! grepl("rand", alignments$Reference, fixed=T),]
+
+
+
+#---------------------------------------------
+#GENOME PLOT
+#---------------------------------------------
+
+genome_plot <- function(targets, nrows, colors, row.spacer=0, max.contigs=200){
   
-  alignments$S1 = strtoi(alignments$S1)
-  alignments$E1 = strtoi(alignments$E1)
-  alignments$S2 = strtoi(alignments$S2)
-  alignments$E2 = strtoi(alignments$E2)
-  alignments <- alignments[order(alignments$chr, alignments$S1),]
-  return (alignments)
-}
+  kp <- plotKaryotype(genome="hg38")
+  kpDataBackground(kp, data.panel = 1, col="white")
 
-get_quast_alignments <- function(dir, target){
+  gaps = get_hg38_gaps()
+  gap.data = makeGRangesFromDataFrame(get_hg38_gaps())
+  kpPlotRegions(kp, col="#dddddd", data=gap.data, avoid.overlapping=F)
   
-  target.file=paste(dir,target, sep="/")
-
-  if (file.exists(target.file)){
+  total.rows = nrows*length(targets) + row.spacer
+  y=0
+  
+  for (i in 1:length(targets)){
+    target = targets[i]
+    c0=colors[(i-1)*3 + 1]
+    c1=colors[(i-1)*3 + 2]
+    c2=colors[(i-1)*3 + 3]
     
-    alignments = read.csv(sep="\t", target.file)
-    alignments = alignments[! is.na(alignments$IDY), ]
-    x = str_split(alignments$Reference, "_", n=2)
-    chroms = unlist(lapply(x, `[[`, 1))
-    alignments$chr = chroms
-    alignments = alignments[! grepl("rand", alignments$Reference, fixed=T),]
-    alignments$S1 = strtoi(alignments$S1)
-    alignments$E1 = strtoi(alignments$E1)
-    alignments$S2 = strtoi(alignments$S2)
-    alignments$E2 = strtoi(alignments$E2)
-    alignments <- alignments[order(alignments$chr, alignments$S1),]
-    return (alignments)
+    dirs <- list.files(path=quast.directory, full.names=TRUE, recursive=FALSE)
+    for (dir in dirs) {
+      
+      print(dir)
+      align.df = get_quast_alignments(dir, target)
+      if (length(align.df) == 1 && is.na(align.df)){ next }
+      
+      hdf = top_contigs(align.df, n=max.contigs)
+      
+      kpHeatmap(kp, chr=hdf$chr, 
+                x0=hdf$s, x1=hdf$e,
+                y=hdf$value, r0=0.05 + y, r1=0.05 + y+0.75/total.rows,
+                colors = c(c0,c1,c2))
+      y = y + 1.0/total.rows
+      
+    }
+
   }
-  
-  return(NA)
 }
+
+
+purples=c("#341752", "#D06Ec4", "#FCF0FF")
+blues=c("#052B52", "#1e00d6", "#9DD2FF")
+oranges=c("#764F13", "#FF8840", "#FFDDAA")
+
+targets=c(hybrid.target, canu.target, supernova.target)
+colors =c(purples, oranges, blues)
+#genome_plot(targets, NSAMPLES, colors)
+mc=100
+rs=10
+genome_plot(hybrid.target, NSAMPLES, purples, max.contigs=mc, row.spacer=rs)
+genome_plot(canu.target, NSAMPLES, oranges, max.contigs=mc, row.spacer=rs)
+genome_plot(supernova.target, NSAMPLES, blues, max.contigs=mc, row.spacer=rs)
+
+
+
+
+
+kp <- plotKaryotype(genome="hg38")
+kpDataBackground(kp, data.panel = 1, col="white")
+expected=nrows
+last=0
+i=0
+
+gaps = get_hg38_gaps()
+gap.data = makeGRangesFromDataFrame(get_hg38_gaps())
+kpPlotRegions(kp, col="#dddddd", data=gap.data, avoid.overlapping=F)
+
+
+
+dirs <- list.files(path=quast.directory, full.names=TRUE, recursive=FALSE)
+for (dir in dirs) {
+  
+  print(dir)
+  align.df = get_quast_alignments(dir, target)
+  if (length(align.df) == 1 && is.na(align.df)){ next }
+  
+  hdf = top_contigs(align.df, n=max.contigs)
+  
+  kpHeatmap(kp, chr=hdf$chr, 
+            x0=hdf$s, x1=hdf$e,
+            y=hdf$value, r0=0.05 + last, r1=0.05 + last+0.75/expected,
+            colors = c(c0,c1,c2))
+  last = last+1.0/expected
+  i=i+1
+  print(i)
+  
+}
+
+
+
+
+
+
+
+
+
+kp <- plotKaryotype(plot.type = 2, chromosomes = c("chr1", "chr2", "chr3"))
+
+### Data Panel 1 ###
+
+#Big regions
+kpRect(kp, data = big.regs.up, y0=0, y1=1, col="#FFDDDD", border=NA, r0=0, r1=0.8)
+kpRect(kp, data = big.regs.down, y0=0, y1=1, col="#DDFFDD", border=NA, r0=0, r1=0.8)
+
+#Data points
+kpAxis(kp, ymin = 0, ymax = 1, r0=0, r1=0.8, numticks = 5, col="#666666", cex=0.5)
+kpPoints(kp, data=data.points, pch=16, cex=0.5, col=dp.colors, r0=0, r1=0.8)
+
+#Mean and sd of the data points.  
+for(chr in seqlevels(kp$genome)) {
+  chr.dp <- sort(keepSeqlevels(x = data.points, value = chr, pruning.mode = "coarse"))
+  rmean <- rollmean(chr.dp$y, k = 6, align = "center")  
+  rsd <- rollapply(data = chr.dp$y, FUN=sd, width=6)
+  kpLines(kp, chr = chr, x=start(chr.dp)[3:(length(chr.dp)-3)], y=rmean, col=data.points.colors[3], r0=0, r1=0.8)
+  kpPlotRibbon(kp, chr=chr, data=chr.dp[3:(length(chr.dp)-3)], y0=rmean-rsd, y1=rmean+rsd, r0=0, r1=0.8, col="#FF336633", border=NA)
+}
+
+#Markers
+kpPlotMarkers(kp, data=marks, label.color = "#333333", r1=1.1, cex=0.5, label.margin = 5)
+
+### Data Panel 2 ###
+
+#medium regions and their coverage
+
+kpPlotRegions(kp, data = mid.regs, r0 = 0.2, r1=1, border=NA, data.panel=2)
+kpPlotCoverage(kp, data=mid.regs, r0=0.2, r1=0, col=data.points.colors[2], data.panel = 2)
+kpPlotCoverage(kp, data=mid.regs, r0=0.2, r1=0.12, col=data.points.colors[1], data.panel = 2)
+
+kpText(kp, chr=seqlevels(kp$genome), y=0.4, x=0, data.panel = 2, r0=0.2, r1=0, col="#444444", label="30x", cex=0.8, pos=2)
+kpAbline(kp, h=0.4, data.panel = 2, r0=0.2, r1=0, col=data.points.colors[3])
+
+plot of chunk Figure
+
+
+
+
+
+
+
+
+
+
+
+w=1e5
+files <- list.files(path="C:/Users/scott/Desktop/quast/quast_alignments", full.names=TRUE, recursive=FALSE)
+hdf = empty_data(w)
+cdf = empty_data(w)
+sdf = empty_data(w)
+count = 0
+
+for (x in files) {
+  print(x)
+  aln = get_alignments(paste(sep="/", x, "hybrid_alignments.tsv"))
+  data = alignments_to_data(aln, w)
+  hdf$value = hdf$value + data$value
+  
+  aln = get_alignments(paste(sep="/", x, "canu_alignments.tsv"))
+  data = alignments_to_data(aln, w)
+  cdf$value = cdf$value + data$value
+  
+  aln = get_alignments(paste(sep="/", x, "supernova_alignments.tsv"))
+  data = alignments_to_data(aln, w)
+  sdf$value = sdf$value + data$value
+  
+  count = count+1
+}
+hdf$value = hdf$value/count
+cdf$value = cdf$value/count
+sdf$value = sdf$value/count
+
+kp <- plotKaryotype(genome="hg38")
+kpDataBackground(kp, data.panel = 1)
+#kpAddBaseNumbers(kp)
+#kpPoints(kp, chr=data$chr, x=data$s, y=data$value)
+
+kpHeatmap(kp, chr=hdf$chr, 
+          x0=hdf$s, x1=hdf$e,
+          y=pmin(hdf$value,1), r0=0, r1=0.2,
+          colors = c("white", "purple"))
+
+kpHeatmap(kp, chr=cdf$chr, 
+          x0=cdf$s, x1=cdf$e,
+          y=pmin(cdf$value,1), r0=0.3, r1=0.5,
+          colors = c("white", "orange"))
+
+kpHeatmap(kp, chr=sdf$chr, 
+          x0=sdf$s, x1=sdf$e,
+          y=pmin(sdf$value,1), r0=0.6, r1=0.8,
+          colors = c("white", "blue"))
+
+kpBars(kp, chr=data$chr, x0=data$s, x1=data$e, y1=data$value, col="#000000", border=NA)
+kpRect(kp, chr=data$chr, x0=data$s, x1=data$e, y0=0,y1=1, alpha=data$value, col="#000000", border=NA)
+
+
 
 
 #---------------------------------------------

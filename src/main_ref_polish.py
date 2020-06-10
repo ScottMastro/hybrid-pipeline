@@ -125,7 +125,7 @@ def main_human_reference_polish():
 
     # downsample
     if param.DOWNSAMPLE is not None and param.DOWNSAMPLE < 1:
-        
+        print("hello")
         if io.file_exists(prefix + "_downsampled.bam"):
             bamFile = prefix + "_downsampled.bam"
         else:
