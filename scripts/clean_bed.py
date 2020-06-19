@@ -1,6 +1,7 @@
 from pybedtools import BedTool
 import argparse
 import re
+import sys 
 
 def main():
     
@@ -14,6 +15,10 @@ def main():
     args = parser.parse_args()
     bedFile = args.input
     outFile = args.output
+
+    if bedFile is None or outFile is None:
+        parser.print_help()
+        sys.exit()
 
     writer = open(outFile, "w")
     reader = open(bedFile, "r")
@@ -36,4 +41,3 @@ def main():
         
 if __name__== "__main__":
   main()
-  exit()

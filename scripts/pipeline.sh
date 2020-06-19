@@ -13,7 +13,7 @@ if [ -z "$QUEUE_NAME" ]; then QUEUE="" ; else QUEUE="-q $QUEUE_NAME"; fi
 UNITIG_CLEAN=${BASEDIR}/hybrid-pipeline/scripts/clean_bed.py
 PURGE=${BASEDIR}/hybrid-pipeline/scripts/purge.sh
 ALIGN_TIGS=${BASEDIR}/hybrid-pipeline/scripts/align_chunks/align_contigs.sh
-HYBRID_SCRIPT=${BASEDIR}/hybrid-pipeline/src/main.py
+HYBRID_SCRIPT=${BASEDIR}/hybrid-pipeline/src/pipeline.py
 
 JOBOUT=${BASEDIR}/jobout/${CFID}
 mkdir -p $JOBOUT
@@ -80,7 +80,7 @@ if [ -f $HYBRID_FA ]; then
    DEPEND_3=""
 else
 
-   JOB="$ENV ; $PYTHON $HYBRID_SCRIPT $SUMMARY $QUERY_FA $REF_FA \
+   JOB="$ENV ; $PYTHON $HYBRID_SCRIPT hybrid $SUMMARY $QUERY_FA $REF_FA \
         --confident $UNITIGS_BED -o $HYBRIDDIR"
    HYBRID_JID=$(echo $JOB | qsub $QUEUE $DEPEND_2 -l nodes=1:ppn=1 -l mem=32g -l vmem=32g -l walltime=6:00:00 -o $JOBOUT -e $JOBOUT -d `pwd` -N hybrid_${CFID} "-")
    DEPEND_3="-W depend=afterok:${HYBRID_JID}"
