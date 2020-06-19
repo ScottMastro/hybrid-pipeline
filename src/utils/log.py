@@ -1,24 +1,42 @@
 import numpy as np
 
+#==================================================
+# Class for printing out information to stdout 
+#==================================================
+
+LOG_NOTHING  = 0
+LOG_PROGRESS = 1
+LOG_DETAILS  = 2
+LOG_DEBUG    = 3
+
 class Logger(object):
     __instance = None
     level = 0
     wait = True
 
-    def __new__(cls, level=0, wait=True):
-        if Logger.__instance is None:
+    def __new__(cls, level=LOG_PROGRESS, wait=True, clean=False):
+        if Logger.__instance is None or clean:
             Logger.__instance = object.__new__(cls)
             Logger.level = level
             Logger.wait = wait
 
         return Logger.__instance
     
-    def out(self, text, verboseLevel=-1, wait=False):
+    def clear(self): self.__instance = None
+    
+    def out(self, text, verboseLevel=LOG_PROGRESS, wait=False, indent=0):
         if self.level >= verboseLevel:
-            print(text)
+            t = indent*"\t"
+            print(t + text.replace("\n", "\n"+t))
             if wait and self.wait:
                 input()
 
+def log(text, level=LOG_PROGRESS, wait=False, indent=0):
+    Logger().out(text, level, wait, indent)
+    
+#==================================================
+# Class for printing out lines to a file 
+#==================================================
 
 class FileLogger(object):
     __instance = None

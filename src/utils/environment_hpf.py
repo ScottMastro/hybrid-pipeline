@@ -11,10 +11,6 @@ BGZIP = "bgzip"
 TABIX = "tabix"
 PICARD="java -Xmx8G -jar " + TOOL_DIR + "picard.jar"
 
-#https://anaconda.org/bioconda/nucdiff
-#https://github.com/uio-cels/NucDiff
-NUCDIFF="nucdiff"
-
 #ILLUMINA TOOLS
 BWA = "bwa"
 PILON="java -Xmx16G -jar " + TOOL_DIR + "pilon-1.23.jar"

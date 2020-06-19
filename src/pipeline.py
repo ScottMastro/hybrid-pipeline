@@ -2,9 +2,9 @@ import argparse
 import sys
 import parameters as param
 
-import hybrid
-import polish
-#import graph
+import hybrid_main as hybrid
+import polish_main as polish
+import graph_main as graph
 
 COMMAND = "command"
 HYBRID  = "hybrid"
@@ -48,11 +48,11 @@ if __name__== "__main__":
             sys.exit()
 
         if command == GRAPH:
-            parameters = param.get_polish_parameters(graphParser)
+            parameters = param.get_graph_parameters(graphParser)
             if not param.validate_graph_parameters(parameters):
                 graphParser.print_help()
             else:
-                #graph.main(parameters)
+                graph.main(parameters)
                 pass
             sys.exit()
 

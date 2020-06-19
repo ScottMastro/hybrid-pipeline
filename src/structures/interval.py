@@ -1,5 +1,9 @@
 LEFT, RIGHT = 'l', 'r'
 
+#==================================================
+# Recursive Interval class
+#==================================================
+
 class Interval:
     '''
     A region of homology between a query and reference contig.
@@ -15,12 +19,11 @@ class Interval:
     with respect to the query data and q=False is with respect to the reference.
     '''
 
-    def __init__(self, qid="?", rid="?", subclass=None):
+    def __init__(self, qid="?", rid="?"):
         self.iid=None
         self.rid=str(rid)
         self.qid=str(qid)
         self.components = []
-        self.subclass = subclass
     
     def set_interval_id(self, iid):
         self.iid=str(iid)
@@ -128,8 +131,6 @@ class Interval:
         
         return True
     
-    
-    
     def get_dir(self, q=True, string=False):
         if(self.start(q) < self.end(q)):    return "+" if string else 1
         elif(self.end(q) < self.start(q)):  return "-" if string else -1
@@ -192,6 +193,10 @@ class Interval:
 
         return True
 
+    def log_string(self):
+        return "q=" + str(self.qid) + ":" + str(self.left(q=True))  + "-" +  str(self.right(q=True)) + \
+             "\tr=" + str(self.rid) + ":" + str(self.left(q=False)) + "-" +  str(self.right(q=False)) 
+
     def __len__(self):
         return len(self.components)
             
@@ -199,7 +204,7 @@ class Interval:
          return self.components[key]
 
     def __repr__(self):
-        string = "" if self.subclass is None else str(self.subclass + ":\t")
+        string = ""
         string = string + "qid=" + str(self.qid) + "\trid=" + str(self.rid) + "\t"
         string = string + "len=" + str(len(self))
         return string
@@ -212,6 +217,10 @@ def construct_interval(component):
     newInterval.add(component)
     return newInterval
 
+
+#==================================================
+# Alignment Chunk class
+#==================================================
 
 class Chunk(Interval):
 

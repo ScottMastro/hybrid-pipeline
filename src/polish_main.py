@@ -1,23 +1,20 @@
 import os, re
-import parameters
 import utils.log as logger
 import utils.fasta_handler as fasta
+import polishtools.polish as polisher
 
-import polish.polish_region as polisher
-
-def main():
+def main(param):
     
-    #--------------------------------------
-    # READ IN DATA
-    #--------------------------------------
+    #==================================================
+    # Read in data
+    #==================================================
 
-    param = parameters.get_parameters_polish()
     if not os.path.exists(param.OUTPUT_DIR): os.mkdir(param.OUTPUT_DIR)
     
+    logger.Logger(clean=True, level=param.VERBOSE)
     logger.FileLogger(clean=True, outdir=param.OUTPUT_DIR)
-    logger.Logger(level=param.VERBOSE, wait=param.WAIT)
 
-    logger.Logger().out("Reading fasta...")
+    logger.log("Reading fasta...")
     
     if param.TARGET_CONTIG is None:
         seqData = fasta.read_fasta(param.FASTA)
@@ -29,24 +26,15 @@ def main():
     lengthData = {x : len(seqData[x]) for x in tigIds}
     tigIds.sort(key=lambda x: -lengthData[x])
 
-    #logger.Logger().out("Reading alignment data...")
-    #alignDict = io.parse_alignments(param.SUMMARY)
-
-    #--------------------------------------
-    # POLISH
-    #--------------------------------------
-    def clean_name(name): return re.sub(r'[\\/*?:"<>|]', "_", str(name))
-
+    #==================================================
+    # Polish
+    #==================================================
+    
     for tigId in tigIds:
-        outdir = param.OUTPUT_DIR + "/" + clean_name(tigId) + "/"
+        logger.log("Polishing " + tigId + "...")
+
+        cleanId = re.sub(r'[\\/*?:"<>|]', "_", str(tigId))
+        outdir = param.OUTPUT_DIR + "/" + cleanId + "/"
         if not os.path.exists(outdir): os.mkdir(outdir)
         
         polisher.polish_contig(tigId, outdir, seqData, lengthData, param)
-        
-if __name__== "__main__":
-  main()
-  exit()
-    
-        
-        
-        

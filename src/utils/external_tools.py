@@ -1,54 +1,28 @@
-import pysam
-import pyfaidx
-import copy
-
+import pysam, pyfaidx
 import subprocess
 import re, glob, gzip
-import os, shutil
-from . import fasta_handler as fasta
+import os, shutil, copy
+import sys
+sys.path.append("../..")
 
-from . import environment as env
-#from . import environment_hpf as env
+import utils.fasta_handler as fasta
+
+import utils.environment as env
+#import utils.environment_hpf as env
 
 def parse(command):
     return command.split()
 
-#picard
-#========================================================
-
-def unalign_bam(bamFile, prefix):    
-    
-    cmd = parse(env.PICARD)
-    revert = cmd + ["RevertSam"]
-    revert.append("I=" + bamFile)
-    unaligned = prefix + ".unaligned.bam"
-    revert.append("O=" + unaligned)
-    
-    subprocess.call(revert)
-    return unaligned 
-
-def create_seq_dict(fastaFa):
-    
-    cmd = parse(env.PICARD)
-
-    outName = ".".join(fastaFa.split(".")[:-1]) + ".dict"    
-    createDict = cmd + ["CreateSequenceDictionary", "R=" + fastaFa, "O=" + outName]
-    
-    subprocess.call(createDict)
-    return outName 
-
-
-#samtools
-#========================================================
+#==================================================
+# Bam helpers
+#==================================================
 
 def samtools_index(bamFile):    
-    """Index a bam file."""
-    
     cmd = parse(env.SAMTOOLS)
     subprocess.call(cmd + ["index", bamFile])
     return bamFile + ".bai"
 
-def sam2bam(samFile):
+def sam_to_bam(samFile):
     cmd = parse(env.SAMTOOLS)
     view = cmd + ["view", "-S", "-b", samFile]
     base = ".".join(samFile.split(".")[:-1]) 
@@ -64,20 +38,6 @@ def sam2bam(samFile):
 
     os.remove(unsorted)
 
-    samtools_index(outName)
-    return outName
-
-
-def samtools_subset(bamFile, region, prefix):
-    '''View and index a subset of a bam file'''
-    
-    cmd = parse(env.SAMTOOLS)
-    outName = prefix + ".subset.bam"
-
-    writer = open(outName, 'w+')    
-    subprocess.call(cmd + ["view", "-b", bamFile, str(region)], stdout=writer)
-    writer.close()
-        
     samtools_index(outName)
     return outName
 
@@ -120,9 +80,19 @@ def samtools_write(alignments, prefix, headerBam, makeUnique=False, index=True):
         samtools_index(outName)
     return outName
 
+def bgzip(vcfFile):
+    cmd1 = parse(env.BGZIP)
+    cmd2 = parse(env.TABIX)
 
-#conversion
-#========================================================
+    '''Call bgzip to compress a VCF file.'''
+    subprocess.call(cmd1 + ["-f", vcfFile])
+    subprocess.call(cmd2 + [vcfFile + ".gz"])
+    return(vcfFile + ".gz")
+
+#==================================================
+# Long Ranger
+#==================================================
+
 def bam2fastq_10x(bamFile, prefix, dirName=None, region=None, returnFqList=False):
     
     cmd = parse(env.BAM2FQ_10X)
@@ -155,79 +125,125 @@ def bam2fastq_10x(bamFile, prefix, dirName=None, region=None, returnFqList=False
 
     return outDir + "/"
 
-def bam2fastq(bamFile):
-
-    cmd = parse(env.SAMTOOLS)
-
-    outName = ".".join(bamFile.split(".")[:-1]) + ".fq"    
-    writer = open(outName, 'w+')    
-    subprocess.call(cmd + ["bam2fq", bamFile], stdout=writer)
-    writer.close()
-    return outName
-
-def reads2fasta(alignments, prefix):
-
-    fastaLines = dict()
-    fastaFile = prefix + (".fasta" if not prefix.endswith(".fasta") else "")
-
-    for alignment in alignments:
-        fastaLines[alignment.qname] = alignment.seq
+def create_seq_dict(fastaFa):
     
-    writer = open(fastaFile, 'w+')
-    for readId in fastaLines:
-        writer.write(">" + readId + "\n" + fastaLines[readId] + "\n")
-    writer.close()
+    cmd = parse(env.PICARD)
 
-    return fastaFile
-
-
-
-#bcftools
-#========================================================
-
-def sort_vcf(vcfFile, removeOriginal=False, index=False):
-    cmd = parse(env.BCFTOOLS)
+    outName = ".".join(fastaFa.split(".")[:-1]) + ".dict"    
+    createDict = cmd + ["CreateSequenceDictionary", "R=" + fastaFa, "O=" + outName]
     
-    outName = re.sub(".vcf", ".sorted.vcf", vcfFile)
-    sort = cmd + ["sort"]
-    if index:
-        sort.append("-Ob")
-        outName.append(".gz")
+    subprocess.call(createDict)
+    return outName 
+
+def mkref_10x(refFa, svBlacklist=False):
+    
+    cmd = parse(env.LONGRANGER)
+
+    faName = refFa.split("/")[-1]
+    faBase = ".".join(faName.split(".")[:-1]) 
+
+    print(os.getcwd())
+    indexDirName = "./refdata-" + faBase
+    
+    #remove existing
+    try:
+        shutil.rmtree(indexDirName)
+    except:
+        pass
+            
+    subprocess.call(cmd + ["mkref", refFa])
+    create_seq_dict(indexDirName + "/fasta/genome.fa")
+
+    if svBlacklist:
+        faDict = fasta.read_fasta(refFa)
+        blacklist = indexDirName + "/regions/sv_blacklist.bed"
+        writer = open(blacklist, 'w')
+
+        for tig in faDict:
+            line="\t".join([tig, "0", str(len(faDict[tig])-1), "contig"])
+            writer.write(line)
+        writer.close()
+
+    return indexDirName
+    
+def align_10x(refFa, fqDir, prefix, useFreebayes=False, svBlacklist=False):
+    
+    cmd = parse(env.LONGRANGER)
+    gatkJar = str(env.GATK_10x_JAR)
+    cores = str(env.CORES)
+    mem = str(env.MEM)
+
+    sampleName = ".".join(refFa.split(".")[:-1]).split("/")[-1] + "-longranger"
+    cwd=os.getcwd()
+    os.chdir(prefix)
+
+    reference = mkref_10x(refFa, svBlacklist)
+    
+    longrangerWGS = cmd + ["wgs", "--id=" + sampleName,
+                     "--fastqs=" + fqDir, "--reference=" + reference,
+                     "--jobmode=local", "--disable-ui", "--sex=female",
+                     "--nopreflight", "--noloupe"]
+    
+    if useFreebayes:
+        longrangerWGS.append("--vcmode=freebayes")
+    else:
+        longrangerWGS.append("--vcmode=gatk:" + gatkJar)
+
+    longrangerWGS.extend(["--localcores=" + cores, "--localmem=" + mem])
+    subprocess.call(longrangerWGS)
+    
+    os.chdir(cwd)
+
+    #clean up output directory
+    files = glob.glob(prefix + sampleName + "/*")
+    nfiles = len(files)
+    files = [file for file in files if not file.endswith("outs")]
+    if len(files) +1 == nfiles:
+        for file in files:
+            try:
+                os.remove(file)
+            except:
+                try:
+                    shutil.rmtree(file)
+                except:
+                    pass
+    
+    outs = glob.glob(prefix + sampleName + "/*/*")
+    for out in outs:
+        try:
+            shutil.move(out, prefix + sampleName + "/")
+        except:
+            pass
+
+    try:
+        shutil.rmtree(prefix + sampleName + "/outs")
+    except:
+        pass
+    
+    return [prefix + sampleName + "/phased_variants.vcf.gz",
+            prefix + sampleName + "/phased_possorted_bam.bam"]
+    
+#the 16-base 10x barcode plus 7 additional bases
+def trim_10x_barcode(fastq, trim=23):
+    reader = gzip.open(fastq, "rt" if fastq.endswith("gz") else "r")
+    trimmedFq = "/".join(fastq.split("/")[:-1]) +  "/trimmed" + str(trim) + "_" + fastq.split("/")[-1] 
+    writer = gzip.open(trimmedFq, 'wt')
+
+    line = reader.readline()
+
+    while(line):        
+        if not line.startswith("@") and not line.startswith("+"):
+            line = line[trim:]            
+        writer.write(line)
+        line = reader.readline()
         
-    sort = sort + ["-o", outName, vcfFile]
+    reader.close()
+    writer.close()
+    return trimmedFq
 
-    print(sort)
-    subprocess.call(sort)
-    if removeOriginal:
-        os.remove(vcfFile)
-    return outName
-
-#bgzip
-#========================================================
-
-def bgzip(vcfFile):
-    cmd1 = parse(env.BGZIP)
-    cmd2 = parse(env.TABIX)
-
-    '''Call bgzip to compress a VCF file.'''
-    subprocess.call(cmd1 + ["-f", vcfFile])
-    subprocess.call(cmd2 + [vcfFile + ".gz"])
-    return(vcfFile + ".gz")
-
-#pblat
-#========================================================
-def pblat_index(vcfFile):
-    cmd1 = parse(env.BGZIP)
-    cmd2 = parse(env.TABIX)
-
-    '''Call bgzip to compress a VCF file.'''
-    subprocess.call(cmd1 + ["-f", vcfFile])
-    subprocess.call(cmd2 + [vcfFile + ".gz"])
-    return(vcfFile + ".gz")
-
-
-#longshot
-#========================================================
+#==================================================
+# Longshot
+#==================================================
 
 LONGSHOT_BAM_SUFFIX = ".longshot.bam"
 
@@ -253,7 +269,6 @@ def longshot_genotype(bamFile, refFa, prefix, region=None, coverageAware=True, w
 
     longshot.extend(["--bam", bamFile, "--ref", refFa, "--out", outName])
     subprocess.call(longshot)
-    
     
     if writeBams:
         '''
@@ -317,8 +332,9 @@ def get_longshot_phased_reads(prefix, keepOriginal=False):
         
     return [x+".bam" for x in (h1, h2, unphased)]
 
-#whatshap
-#========================================================
+#==================================================
+# Whatshap
+#==================================================
 
 def whatshap_phase(inputList, vcfFile, refFa, prefix, genotype=True, indels=True, maxCov=15):
 
@@ -353,54 +369,9 @@ def whatshap_haplotag(bamFile, vcfFile, refFa):
     samtools_index(outName)
     return outName
 
-
-def whatshap_genotype(bamFile, vcfFile, refFa, prefix, indels=True):
-    
-    cmd = parse(env.WHATSHAP)
-    outName = prefix + ".whatshap.genotype.vcf"
-
-    whatshapGenotype = cmd + ["genotype", "-o", outName, "--ignore-read-groups"]
-    
-    whatshapGenotype.extend(["--reference", refFa])
-    if indels:
-        whatshapGenotype.append("--indels")
-
-    whatshapGenotype.extend([vcfFile, bamFile])
-    subprocess.call(whatshapGenotype)
-    return outName
-
-'''
-def whatshap_find_snv(outname, reference, vcf, bamfile):
-    
-    whatshapSNV = cmd + ["find_snv_candidates", reference, bamfile, "-o", outname]
-    subprocess.call(whatshapSNV)
-    return outname
-'''
-
-#pbsv
-#========================================================
-
-def find_sv(bamFile, refFa, prefix, threads=6, indelOnly=False):
-
-    cmd = parse(env.PBSV)
-
-    outName = prefix + ".pbsv.vcf"
-    signatureFile = prefix + "pbsv.svsig.gz"
-
-    discover = cmd + ["discover", "--sample", "hybrid", bamFile, signatureFile]
-    call = cmd + ["call", "-j", str(threads)]
-
-    if indelOnly:
-        call.extend(["--types", "DEL,INS"])
-        
-    call.extend([refFa, signatureFile, outName])
-
-    subprocess.call(discover)
-    subprocess.call(call)
-    return outName
-
-#pilon 
-#========================================================
+#==================================================
+# Polishing
+#==================================================
 
 def pilon_polish(bamFile, refFa, outdir, prefix=None, snpIndelOnly=False,
                  outputVCF=False, changeFile=False, tracks=False):
@@ -431,55 +402,6 @@ def pilon_polish(bamFile, refFa, outdir, prefix=None, snpIndelOnly=False,
         
     return outName
    
-#nucdiff 
-#========================================================
-def run_nucdiff(refFa, queryFa, outDir, filePrefix=None):
-    
-    cmd = parse(env.NUCDIFF)
-    
-    if filePrefix is None:
-        filePrefix="nucdiff"
-        
-    nucdiff = cmd + [refFa, queryFa, outDir, filePrefix]    
-    subprocess.call(nucdiff)
-            
-    return outDir
-
-def get_nucdiff_stats(outDir, filePrefix=None, toInt=False):
-    
-    if filePrefix is None:
-        filePrefix="nucdiff"
-    
-    statsFile = outDir+"/results/" + filePrefix + "_stat.out"
-    reader = open(statsFile, "r")
-    
-    def to_int(x):
-        if not toInt: return x
-        try: 
-            return int(x)
-        except:
-            return x
-    
-    def clean(x):
-        x = re.sub("-", "_", x)
-        x = "_".join(x.split())
-        x = x.lower()
-        return x
-    
-    d = dict()
-    for line in reader:
-        split = line.strip().split("\t")
-        if len(split) != 2: continue
-        key, value = split        
-        d[clean(key)] = to_int(value)
-        
-    reader.close()
-            
-    return d
-
-#genomicconsensus (arrow)
-#========================================================
-
 def pacbio_polish(bamFile, refFa, prefix, region=None, outputFasta=False, outputGff=False, useMapFilter=True, chunkSize=None):
     #samtools view -H $BAM | sed "s/VN:1.3/VN:1.3\tpb:3.0.4/" | samtools reheader - $BAM
         
@@ -516,8 +438,7 @@ def pacbio_polish(bamFile, refFa, prefix, region=None, outputFasta=False, output
         arrow.extend(["-C", str(chunkSize)])
 
     arrow.append(bamFile)
-    
-    print(arrow)
+
     subprocess.call(arrow)
     
     if outputFasta: 
@@ -526,118 +447,9 @@ def pacbio_polish(bamFile, refFa, prefix, region=None, outputFasta=False, output
     
     return outVcf
 
-#longranger
-#========================================================
-
-def mkref_10x(refFa, svBlacklist=False):
-    
-    cmd = parse(env.LONGRANGER)
-
-    faName = refFa.split("/")[-1]
-    faBase = ".".join(faName.split(".")[:-1]) 
-
-    print(os.getcwd())
-    indexDirName = "./refdata-" + faBase
-    #remove existing
-    try:
-        shutil.rmtree(indexDirName)
-    except:
-        pass
-            
-    subprocess.call(cmd + ["mkref", refFa])
-    create_seq_dict(indexDirName + "/fasta/genome.fa")
-
-    if svBlacklist:
-        faDict = fasta.read_fasta(refFa)
-        blacklist = indexDirName + "/regions/sv_blacklist.bed"
-        writer = open(blacklist, 'w')
-
-        for tig in faDict:
-            line="\t".join([tig, "0", str(len(faDict[tig])-1), "contig"])
-            writer.write(line)
-        writer.close()
-
-    return indexDirName
-    
-def align_10x(refFa, fqDir, prefix, useFreebayes=False, svBlacklist=False):
-    
-    cmd = parse(env.LONGRANGER)
-    gatkJar = str(env.GATK_10x_JAR)
-    cores = str(env.CORES)
-    mem = str(env.MEM)
-
-    sampleName = ".".join(refFa.split(".")[:-1]).split("/")[-1] + "-longranger"
-    cwd=os.getcwd()
-    os.chdir(prefix)
-
-    reference = mkref_10x(refFa, svBlacklist)
-    
-    longrangerWGS = cmd + ["wgs", "--id=" + sampleName,
-                     "--fastqs=" + fqDir, "--reference=" + reference,
-                     "--jobmode=local", "--disable-ui", "--sex=female",
-                     "--nopreflight", "--noloupe"]
-    
-    if useFreebayes:
-        longrangerWGS.append("--vcmode=freebayes")
-    else:
-        longrangerWGS.append("--vcmode=gatk:" + gatkJar)
-
-    longrangerWGS.extend(["--localcores=" + cores, "--localmem=" + mem])
-
-    subprocess.call(longrangerWGS)
-    
-    os.chdir(cwd)
-
-    #clean up output directory
-    files = glob.glob(prefix + sampleName + "/*")
-    nfiles = len(files)
-    files = [file for file in files if not file.endswith("outs")]
-    if len(files) +1 == nfiles:
-        for file in files:
-            try:
-                os.remove(file)
-            except:
-                try:
-                    shutil.rmtree(file)
-                except:
-                    pass
-    
-    outs = glob.glob(prefix + sampleName + "/*/*")
-    for out in outs:
-        try:
-            shutil.move(out, prefix + sampleName + "/")
-        except:
-            pass
-
-    try:
-        shutil.rmtree(prefix + sampleName + "/outs")
-    except:
-        pass
-    
-
-    return [prefix + sampleName + "/phased_variants.vcf.gz",
-            prefix + sampleName + "/phased_possorted_bam.bam"]
-    
-#the 16-base 10x barcode plus 7 additional bases
-def trim_10x_barcode(fastq, trim=23):
-    reader = gzip.open(fastq, "rt" if fastq.endswith("gz") else "r")
-    trimmedFq = "/".join(fastq.split("/")[:-1]) +  "/trimmed" + str(trim) + "_" + fastq.split("/")[-1] 
-    writer = gzip.open(trimmedFq, 'wt')
-
-    line = reader.readline()
-
-    while(line):        
-        if not line.startswith("@") and not line.startswith("+"):
-            line = line[trim:]            
-        writer.write(line)
-        line = reader.readline()
-        
-    reader.close()
-    writer.close()
-    return trimmedFq
-
-#bwa
-#========================================================
+#==================================================
+# BWA
+#==================================================
 
 def bwa_index(refFa):
     cmd = parse(env.BWA)
@@ -656,12 +468,13 @@ def bwa_mem(refFa, read1, read2, prefix):
     subprocess.call(bwa, stdout=writer)
     writer.close()
 
-    outName = sam2bam(samFile)
+    outName = sam_to_bam(samFile)
     os.remove(samFile)
     return outName
     
-#mm2
-#========================================================
+#==================================================
+# minimap2
+#==================================================
 
 def align_pacbio(refFa, readsFile, prefix, minConcordance=None, medianFilter=False):
 
@@ -699,7 +512,6 @@ def align_bam(refFa, readsFile, prefix, asm="asm5", r=500, secondary=False):
     
     return outName
 
-
 def align_paf(refFa, readsFile, prefix, asm="asm5", r=500, secondary=False):
     '''
     -r
@@ -721,6 +533,7 @@ def align_paf(refFa, readsFile, prefix, asm="asm5", r=500, secondary=False):
 
 def align_paf_lenient(refFa, readsFile, prefix):
     return align_paf(refFa, readsFile, prefix, r=10000, asm="asm10", secondary=False)
+
 def align_paf_very_lenient(refFa, readsFile, prefix):
     return align_paf(refFa, readsFile, prefix, r=20000, asm="asm20", secondary=False)
 
@@ -791,136 +604,104 @@ def paf_call(pafFile, referenceFa, prefix, vcfSample="sample", minAlnLen=2500):
 
     return outFile
 
-
-#canu
-#========================================================
-
-def canu_correct(fastaFile, prefix, size, trim=True, rawErrorRate=None):
-    cmd = parse(env.CANU)
-    name = prefix.split("/")[-1]
+#==================================================
+# Graph
+#==================================================
     
-    canuCorrect = cmd + ["-correct", "-p", name, "-d", prefix]
-    canuCorrect.append("genomeSize=" + str(size/1000) + "k")
-    if rawErrorRate is not None:
-        canuCorrect.append("-rawErrorRate=" + str(rawErrorRate))
+def seqwish_graph(faFile, pafFile, prefix, minMatchLen=None, repeatMax=None):
+    # $SEQWISH -k 16 -s $FASTA -p $PAF -g $prefix.gfa
 
-    canuCorrect.append("-pacbio-raw")
-    canuCorrect.append(fastaFile)
-
-    subprocess.call(canuCorrect)
+    outName = prefix + ".gfa"
+    seqwish = parse(env.SEQWISH)
     
-    if trim:
-        canuTrim = canuCorrect
-        canuTrim[1] = "-trim"
-        subprocess.call(canuTrim)
+    if minMatchLen is not None:
+        seqwish = seqwish + ["-k", str(minMatchLen)]
+    if repeatMax is not None:
+        seqwish = seqwish + ["-r", str(repeatMax)]
 
-def canu_assemble(fastaFile, prefix, size):
-    
-    cmd = parse(env.CANU)
-    name = prefix.split("/")[-1]
+    seqwish + ["-r", str(repeatMax)]
 
-    canuAssemble = cmd + ["-assemble", "-p", name, "-d", prefix]
-    canuAssemble.append("genomeSize=" + str(size/1000) + "k")
-    canuAssemble.append("-pacbio-corrected")
-    canuAssemble.append(fastaFile)
-
-    subprocess.call(canuAssemble)
-   
-#hap.py
-#========================================================
-def hap_py(refFa, vcf1, vcf2, prefix, outPrefix="happy", engine="xcmp"):
-    cmd = parse(env.HAP_PY)
-
-    outDir=prefix + "happy/"
-    try:
-        os.mkdir(outDir)
-    except: 
-        pass
-    
-    happy = cmd + ["-r", refFa, "-L", "--preprocess-truth", "--engine", engine]
-    
-    if engine == "vcfeval":
-        happy.append("--engine-vcfeval-path")
-        happy.append(env.RTG)
-
-    happy = happy + ["-o", outDir + outPrefix]    
-    happy.extend([vcf1, vcf2])
-    
-    print(happy)
-    subprocess.call(happy)
-    
-    return outDir + outPrefix + ".vcf.gz"
-
-def pre_py(refFa, vcfFile, prefix=None, decompose=True, noGz=False):
-    cmd1 = parse(env.PRE_PY)
-    cmd2 = parse(env.BGZIP)
-
-    if prefix is None:
-        outname = re.sub(".gz", "", vcfFile)
-        outName = re.sub(".vcf", ".normalized.vcf.gz", outname)
-    else:
-        outName = prefix + ".vcf.gz"
-
-    prepy = cmd1 + ["-r", refFa]
-    if decompose:
-        prepy.append("--decompose")
-    prepy.extend([vcfFile, outName])
-    subprocess.call(prepy)
-    
-    if noGz:
-        newName = re.sub(".gz", "", outName)
-        unzip = cmd2 + ["-d", outName]
-        subprocess.call(unzip)
-        return newName
+    seqwish = seqwish + ["-s", faFile, "-p", pafFile, "-g", outName]
+    subprocess.call(seqwish)
 
     return outName
 
-#RTG
-#========================================================
-def make_sdf(refFa, sdfName):  
-    cmd = parse(env.RTG)
-    rtgformat = cmd + ["format", "-o", sdfName, refFa]
-    subprocess.call(rtgformat)
+def vg_normalize_gfa(gfaFile, prefix, generateGfa=False):
+
+    #vg view -Fv $gfaFile | vg mod -X 256 - | vg mod -n - | vg ids -c -| vg mod -X 256 - > $prefix.vg
     
-    return sdfName
-
-def vcfeval(refFa, baselineVCF, callsVCF, prefix, dirname="vcfeval_out", 
-            squashPloidy=False, useQUAL=True, useFilter=False, outputType="split"):
-    cmd = parse(env.RTG)
-
-    #rtgtools vcfeval -b consensus-longranger/phased_variants.vcf.gz -c AB_temp_merged.vcf -o rtg
-    vcfeval = cmd + ["vcfeval", "-b", baselineVCF, "-c", callsVCF]
-
-    if squashPloidy:
-        vcfeval.append("--squash-ploidy")   
-    vcfeval.append("--output-mode="+outputType)   
-
-    vcfeval.append("--vcf-score-field=QUAL")   
+    outName = prefix + "_normalized.gfa"
+    cmd = parse(env.VG)
     
-    if not useFilter:
-        vcfeval.append("--all-records")   
+    view = cmd + ["view", "-Fv", prefix]
+    mod_size = cmd + ["mod", "-X", "256", "-"]
+    mod_normalize = cmd + ["mod", "-n", "-"]
+    ids = cmd + ["ids", "-c", "-"]
 
-
-    sdf = prefix + "sdf"
-    try:
-        sdf = make_sdf(refFa, sdf)
-    except:
-        print("SDF already exists:" + prefix + "temp_sdf")
-        
-    outdir = prefix + dirname
-
-    try:
-        shutil.rmtree(outdir,ignore_errors=True)
-    except:
-        pass
+    p1 = subprocess.Popen(view, stdout=subprocess.PIPE)
     
-    vcfeval = vcfeval + ["-t", sdf, "-o", outdir]
-    subprocess.call(vcfeval)
+    p2 = subprocess.Popen(mod_size, stdin=p1.stdout, stdout=subprocess.PIPE)
+    p1.stdout.close()
     
-    return outdir + "/"
+    p3 = subprocess.Popen(mod_normalize, stdin=p2.stdout, stdout=subprocess.PIPE)
+    p2.stdout.close()  
+    
+    p4 = subprocess.Popen(ids, stdin=p3.stdout, stdout=subprocess.PIPE)
+    p3.stdout.close()  
 
-#vg
-#========================================================
+    writer = open(outName, 'w+')    
+    subprocess.Popen(mod_size, stdin=p4.stdout, stdout=writer)
+    p4.stdout.close()
+    writer.close()
+    
+    if generateGfa:
+        #vg view -Vg $prefix.vg > $prefix_normalized.gfa
+
+        gfaOut = prefix + "_normalized.gfa"
+        gfaview = cmd + ["view", "-Vg", outName]
+
+        writer2 = open(gfaOut, 'w+')    
+        subprocess.Popen(gfaview, stdin=p4.stdout, stdout=writer2)
+        writer.close()
+
+    return outName
+
+def vg_index(vgFile, xg=True, gcsa=False):
+
+    cmd = parse(env.VG)
+
+    prefix = re.sub(".vg", "", vgFile)
+    index = cmd + ["index"]
+    
+    if xg:
+        index.extend(["-x", prefix + ".xg"])
+    if gcsa:
+        index.extend(["-g", prefix + ".gcsa"])
+
+    index.append(vgFile)
+    subprocess.call(index)
+
+    return prefix
+
+def vg_paths_to_gam(xgFile, prefix):
+    #vg paths -X -x prefix.xg > prefix.gam
+
+    cmd = parse(env.VG)
+       
+    paths = cmd + ["paths", "-X", "-x", xgFile]
+    
+    outName = prefix + ".gam"
+    
+    writer = open(outName, 'w+')    
+    subprocess.call(paths, stdout=writer)
+    writer.close()
+
+    return outName
+
+#==================================================
+# Legacy graph code
+#==================================================
+
 def construct_graph(faFile, vcfFiles, prefix):
 
     cmd = parse(env.VG)
@@ -979,23 +760,6 @@ def construct_graph_msga(faFiles, prefix, normalize=False,
 
     writer.close()
     return outName
-    
-def index_graph(vgFile, xg=True, gcsa=True):
-
-    cmd = parse(env.VG)
-
-    prefix = re.sub(".vg", "", vgFile)
-    index = cmd + ["index"]
-    
-    if xg:
-        index.extend(["-x", prefix + ".xg"])
-    if gcsa:
-        index.extend(["-g", prefix + ".gcsa"])
-
-    index.append(vgFile)
-    subprocess.call(index)
-
-    return prefix
 
 
 def index_graph_haplotypes(vgFile, phasedVCF, writeHaps=None):
@@ -1110,27 +874,3 @@ def add_path_graph(vgFile, faFile, name, indexed=False):
         
     gam = map_graph(faFile, vgFile, name=name)
     return augment_graph(vgFile, gam)
-
-def graph_to_vcf(vgFile, refPaths, altPaths, prefix, index=False):
-    
-    cmd = parse(env.VG)
-
-    if not isinstance(refPaths, list):
-        refPaths = [refPaths]
-    if not isinstance(altPaths, list):
-        altPaths = [altPaths]
-        
-    deconstruct = cmd + ["deconstruct", "-e"]
-    deconstruct = deconstruct + ["-p", ",".join(refPaths)]
-    deconstruct = deconstruct + ["-A", ",".join(altPaths)]
-    deconstruct.append(vgFile)
-        
-    outName = prefix + (".vcf" if not prefix.endswith(".vcf") else "")
-
-    writer = open(outName, 'w+')
-    subprocess.call(deconstruct, stdout=writer)
-    writer.close()
-    
-    outName = sort_vcf(outName, removeOriginal=False, index=index)        
-
-    return outName
