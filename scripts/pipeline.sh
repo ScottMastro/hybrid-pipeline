@@ -80,8 +80,8 @@ if [ -f $HYBRID_FA ]; then
    DEPEND_3=""
 else
 
-   JOB="$ENV ; $PYTHON $HYBRID_SCRIPT hybrid $SUMMARY $QUERY_FA $REF_FA \
-        --confident $UNITIGS_BED -o $HYBRIDDIR"
+   JOB="$ENV ; $PYTHON $HYBRID_SCRIPT hybrid  --confident $UNITIGS_BED -o $HYBRIDDIR \
+               $SUMMARY $QUERY_FA $REF_FA"
    HYBRID_JID=$(echo $JOB | qsub $QUEUE $DEPEND_2 -l nodes=1:ppn=1 -l mem=32g -l vmem=32g -l walltime=6:00:00 -o $JOBOUT -e $JOBOUT -d `pwd` -N hybrid_${CFID} "-")
    DEPEND_3="-W depend=afterok:${HYBRID_JID}"
 fi

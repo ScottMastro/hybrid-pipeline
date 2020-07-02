@@ -19,6 +19,9 @@ def main(param):
     #==================================================
     # Read in data
     #==================================================
+    print("ref=", param.REF_FA)
+    print("query=", param.QUERY_FA)
+    print("summary=", param.SUMMARY)
 
     logger.log("Reading reference fasta...")
     refData = fasta.read_fasta(param.REF_FA)

@@ -1,3 +1,5 @@
+import sys
+
 #==================================================
 # Parameter class 
 #==================================================
@@ -168,7 +170,7 @@ def set_graph_parameters(parser, defaultParameters=None):
 def get_hybrid_parameters(parser):
 
     p = Parameters()
-    args = parser.parse_args()
+    args = parser.parse_args(sys.argv[2:])
 
     p.QUERY_FA = args.qfasta
     p.REF_FA = args.rfasta
@@ -198,7 +200,7 @@ def get_hybrid_parameters(parser):
 def get_polish_parameters(parser):
 
     p = Parameters()
-    args = parser.parse_args()
+    args = parser.parse_args(sys.argv[2:])
     
     #set parameters from user input
     p.FASTA = args.fasta
@@ -207,7 +209,6 @@ def get_polish_parameters(parser):
     p.TARGET_CONTIG = args.tig
     p.OUTPUT_DIR = args.outdir
     p.VERBOSE = args.verbose
-    p.WAIT = args.wait
     p.KEEP_INTERMEDIATE = args.keep
 
     return p
@@ -215,7 +216,7 @@ def get_polish_parameters(parser):
 def get_graph_parameters(parser):
    
     p = Parameters()
-    args = parser.parse_args()
+    args = parser.parse_args(sys.argv[2:])
 
     #set parameters from user input
     p.TSV_INPUT = args.input

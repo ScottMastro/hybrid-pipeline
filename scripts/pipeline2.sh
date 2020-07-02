@@ -87,11 +87,11 @@ echo "STEP 6: POLISHING"
 POLISHDIR=${BASEDIR}/${CFID}/polish
 mkdir -p $POLISHDIR
 
-grep ">" CF002/hybrid/hybrid_assembly.fasta | cut -c2- | \
+grep ">" $HYBRID_FA | cut -c2- | \
  while read -r TARGET ; do
  
     #todo: check for output
  
-    JOB="$ENV ; $PYTHON $POLISH_SCRIPT polish $HYBRID_FA $LONGRANGER_BAM $PBMM2_BAM -o $POLISHDIR --tig $TARGET"
+    JOB="$ENV ; $PYTHON $POLISH_SCRIPT polish  -o $POLISHDIR --tig $TARGET $HYBRID_FA $LONGRANGER_BAM $PBMM2_BAM"
     POLISH_JID=$(echo $JOB | qsub $QUEUE $DEPEND_4 -l nodes=1:ppn=8 -l mem=121g -l vmem=121g -l walltime=71:59:00 -o $JOBOUT -e $JOBOUT -d `pwd` -N ${CFID}_polish "-")
  done

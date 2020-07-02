@@ -79,6 +79,8 @@ while [ -n "$status" ] # while $status is not empty
 
 
 #remove intermediate directories
-rm -r $DIR/alignments
-rm -r $DIR/split
-rm -r $DIR/blast-db
+rm -r $OUT/alignments
+rm -r $OUT/split
+rm -r $OUT/blast-db
+
+exit 0

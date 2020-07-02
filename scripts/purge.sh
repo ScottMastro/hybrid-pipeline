@@ -52,7 +52,7 @@ for BAM in ${READDIR}/*bam; do
    FASTQ=`echo "$(cd "$(dirname "$FQ")"; pwd)/$(basename "$FQ")"`
    JOB="module load samtools/1.9 ; samtools bam2fq $BAM > $FASTQ"
    JID=$(echo $JOB | \
-         qsub $QUEUE -l nodes=1:ppn=1 -l mem=8g -l vmem=8g -l walltime=3:36:00 -o ./jobout/ -e ./jobout/ -d `pwd` -N bam2fastq_${PREFIX} "-")
+         qsub $QUEUE -l nodes=1:ppn=1 -l mem=8g -l vmem=8g -l walltime=11:36:00 -o ./jobout/ -e ./jobout/ -d `pwd` -N bam2fastq_${PREFIX} "-")
    JID_LIST_1="${JID_LIST_1}:${JID}"
    echo $FASTQ >> $READSLIST
 done
@@ -69,7 +69,7 @@ while read pb
 
           JOB="module load minimap2 ; minimap2 -xmap-pb $ASSEM $pb | gzip -c - > ${ALNDIR}/${PREFIX}.paf.gz"
           JID=$(echo $JOB | \
-                qsub $QUEUE -W depend=afterok${JID_LIST_1} -l nodes=1:ppn=1 -l mem=36g -l vmem=36g -l walltime=6:36:00 -o ./jobout/ -e ./jobout/ -d `pwd` -N purge_align_${CFID}_${PREFIX} "-")
+                qsub $QUEUE -W depend=afterok${JID_LIST_1} -l nodes=1:ppn=1 -l mem=36g -l vmem=36g -l walltime=23:36:00 -o ./jobout/ -e ./jobout/ -d `pwd` -N purge_align_${CFID}_${PREFIX} "-")
           JID_LIST_2=${JID_LIST_2}":${JID}"
 
 done < $READSLIST
@@ -77,7 +77,7 @@ done < $READSLIST
 #---------------------------------------------------
 
 JOB="${PURGE_DUPS}/bin/pbcstat ${ALNDIR}/*.paf.gz ; ${PURGE_DUPS}/bin/calcuts ${OUTDIR}/PB.stat > ${OUTDIR}/cutoffs 2> ${OUTDIR}/calcults.log"
-JID_1=$(echo $JOB | qsub $QUEUE -W depend=afterok${JID_LIST_2} -l nodes=1:ppn=1 -l mem=36g -l vmem=36g -l walltime=1:36:00 -o ./jobout/ -e ./jobout/ -d `pwd` -N pbcstat_${CFID} "-")
+JID_1=$(echo $JOB | qsub $QUEUE -W depend=afterok${JID_LIST_2} -l nodes=1:ppn=1 -l mem=36g -l vmem=36g -l walltime=3:36:00 -o ./jobout/ -e ./jobout/ -d `pwd` -N pbcstat_${CFID} "-")
 echo "Produces PB.base.cov and PB.stat files"
 echo $JOB
 
@@ -111,7 +111,7 @@ while read pb
 
           JOB="module load minimap2 ; minimap2 -xmap-pb $XASSEM $pb | gzip -c - > ${XALNDIR}/${PREFIX}.paf.gz"
           JID=$(echo $JOB | \
-                qsub $QUEUE -W depend=afterok${JID_LIST_1} -l nodes=1:ppn=1 -l mem=36g -l vmem=36g -l walltime=6:36:00 -o ./jobout/ -e ./jobout/ -d `pwd` -N xpurge_align_${CFID}_${PREFIX} "-")
+                qsub $QUEUE -W depend=afterok${JID_LIST_1} -l nodes=1:ppn=1 -l mem=36g -l vmem=36g -l walltime=23:36:00 -o ./jobout/ -e ./jobout/ -d `pwd` -N xpurge_align_${CFID}_${PREFIX} "-")
           JID_LIST_3=${JID_LIST_3}":${JID}"
 
 done < $READSLIST
@@ -119,7 +119,7 @@ done < $READSLIST
 #---------------------------------------------------
 
 JOB="${PURGE_DUPS}/bin/pbcstat ${XALNDIR}/*.paf.gz ; ${PURGE_DUPS}/bin/calcuts ${XOUTDIR}/PB.stat > ${XOUTDIR}/cutoffs 2> ${XOUTDIR}/calcults.log"
-XJID_1=$(echo $JOB | qsub $QUEUE -W depend=afterok${JID_LIST_3} -l nodes=1:ppn=1 -l mem=36g -l vmem=36g -l walltime=1:36:00 -o ./jobout/ -e ./jobout/ -d `pwd` -N xpbcstat_${CFID} "-")
+XJID_1=$(echo $JOB | qsub $QUEUE -W depend=afterok${JID_LIST_3} -l nodes=1:ppn=1 -l mem=36g -l vmem=36g -l walltime=3:36:00 -o ./jobout/ -e ./jobout/ -d `pwd` -N xpbcstat_${CFID} "-")
 echo "Produces PB.base.cov and PB.stat files"
 echo $JOB
 

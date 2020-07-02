@@ -28,8 +28,8 @@ if __name__== "__main__":
     if command is not None:
 
         if command == HYBRID:
-            #parameters = param.get_hybrid_parameters(hybridParser)
-            parameters = param.explicit_hybrid_params()
+            parameters = param.get_hybrid_parameters(hybridParser)
+            #parameters = param.explicit_hybrid_params()
 
             if not param.validate_hybrid_parameters(parameters):
                 hybridParser.print_help()
@@ -38,8 +38,8 @@ if __name__== "__main__":
             sys.exit()
 
         if command == POLISH:
-            #parameters = param.get_polish_parameters(polishParser)
-            parameters = param.explicit_polish_params()
+            parameters = param.get_polish_parameters(polishParser)
+            #parameters = param.explicit_polish_params()
 
             if not param.validate_polish_parameters(parameters):
                 polishParser.print_help()
