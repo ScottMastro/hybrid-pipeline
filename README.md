@@ -1,7 +1,5 @@
 ![hybrid image](https://github.com/ScottMastro/hybrid-pipeline/blob/master/hybrid.svg)
 
----
-
 ## Required data:
 
 - Query assembly: A **supernova assembly** constructed from 10X Genomics linked-reads
@@ -24,7 +22,9 @@ Ensure `minimap2`, `samtools` and the [`purge_dups`](https://github.com/dfguan/p
 
 This Snakemake file defines all the steps:
 
-`snakemake -s hybrid-pipeline/scripts/purge_dup.snakefile --config purgereads=/path/to/reads fasta=/path/to/assembly.fa`
+```
+snakemake -s hybrid-pipeline/scripts/purge_dup.snakefile --config purgereads=/path/to/reads fasta=/path/to/assembly.fa
+```
 
 ## Step 1: BLASTn alignments
 
@@ -32,12 +32,15 @@ This step splits the query assembly into 1 kp chunks, creates a BLAST database f
 
 Ensure `blastn` and `makeblastdb` are available.
 
-`snakemake -s hybrid-pipeline/scripts/blast_chunks.snakefile --config out=output_dir r=HG002_canu.contigs.purged.fa.gz q=HG002_supernova.pseudohap.purged.fa.gz`
+```
+snakemake -s hybrid-pipeline/scripts/blast_chunks.snakefile --config out=output_dir q=HG002_supernova.pseudohap.purged.fa.gz r=HG002_canu.contigs.purged.fa.gz
+```
 
 ## Step 2: Hybrid assembly steps (main script)
 
 > Note: supplying canu unitig data is optional but helps during scaffolding; a script to properly format the BED file is provided: 
 `python hybrid-pipeline/scripts/clean_bed.py canu.unitigs.bed canu.unitigs.clean.bed`
 
-python hybrid-pipeline/src/pipeline.py hybrid --confident {input.unitigs} -o {wildcards.dir} {input.blocks} {input.query} {input.ref}' ; \
-        python "+ PIPELINEDIR +"src/pipeline.py hybrid --confident {input.unitigs} -o {wildcards.dir} {input.blocks} {input.query} {input.ref} "
+```
+python hybrid-pipeline/src/hybrid.py --confident HG002_canu.unitigs.clean.bed -o output_dir {input.blocks} HG002_supernova.pseudohap.purged.fa.gz HG002_canu.contigs.purged.fa.gz
+```
