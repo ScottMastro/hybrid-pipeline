@@ -1,0 +1,101 @@
+import os
+
+ENV_FILE=config["env"]
+shell.prefix("source "+ENV_FILE+" ; ")
+
+include: "Snakefile_irods"
+
+def add_slash(string): 
+    if len(string) == 0: return "./"
+    return string + ("" if string.endswith("/") else "/")
+
+OUTDIR = add_slash(config["out"]) if "out" in config else "./stats/"
+if not os.path.exists(OUTDIR): os.mkdir(OUTDIR)
+
+HYBRIDDIR = add_slash(config["hybrid"])
+
+REF_FASTA = config["r"]
+QUERY_FASTA = config["q"]
+
+rule all:
+    input:
+        #buscohl=OUTDIR+"busco_hybrid/.done",
+        buscoh=OUTDIR+"busco_hybrid_noleftovers/.done"
+        #buscos=OUTDIR+"busco_supernova/.done",
+        #buscoc=OUTDIR+"busco_canu/.done",
+        #quast=OUTDIR+"quast/report.txt"
+        
+###############################################
+# RUN HYBRID
+###############################################
+
+rule setup_busco_hybrid_leftovers:
+    input:
+        assembly=HYBRIDDIR+"hybrid_assembly.fasta.gz",
+        leftovers=HYBRIDDIR+"hybrid_assembly_leftover.fasta.gz"
+    output:
+        temp("{dir}/hybrid.busco.fasta")
+    resources: mem=4
+    shell: "zcat {input.assembly} {input.leftovers} > {output}"  
+
+rule setup_busco_hybrid:
+    input:HYBRIDDIR+"hybrid_assembly.fasta.gz"
+    output: temp("{dir}/hybrid_noleftovers.busco.fasta")
+    resources: mem=4
+    shell: "zcat {input} > {output}"
+
+rule setup_busco_canu:
+    input: ancient(REF_FASTA)
+    output: temp("{dir}/canu.busco.fasta")
+    resources: mem=4
+    shell: """
+    if [ "{input}" == "*.gz" ] ; then
+      zcat {input} > {output}
+    else
+      cat {input} > {output}
+    fi
+    """
+
+rule setup_busco_supernova:
+    input: ancient(QUERY_FASTA)
+    output: temp("{dir}/supernova.busco.fasta")
+    resources: mem=4
+    shell: """
+    if [ "{input}" == "*.gz" ] ; then
+      zcat {input} > {output}
+    else
+      cat {input} > {output}
+    fi
+    """
+        
+rule run_busco:
+    input: ancient("{dir}/{prefix}.busco.fasta")
+    output: "{dir}/busco_{prefix}/.done"
+    resources: mem=82
+    threads:8
+    shell:
+        """
+        cwd=`pwd` ; cd {wildcards.dir}
+        busco -f --cpu 8 -i {input} -l primates_odb10 \
+            -o busco_{wildcards.prefix} -m genome --offline --download_path $BUSCO_DATASETS
+        cd $cwd
+        touch {output}
+        """
+
+rule run_quast:   
+    input:
+        hfasta=HYBRIDDIR+"hybrid_assembly.fasta.gz",
+        lfasta=HYBRIDDIR+"hybrid_assembly_leftover.fasta.gz",
+        rfasta=REF_FASTA,
+        qfasta=QUERY_FASTA
+    output:
+        "{dir}/quast/report.txt"
+    threads:1
+    resources: mem=220
+    shell:
+        """
+        mkdir -p {wildcards.dir}/quast ; \
+         quast-lg.py -t 1 {input.rfasta} {input.qfasta} {input.hfasta} {input.lfasta} \
+         -o {wildcards.dir}/quast -r $HG38 -g $HG38_ANNOTATIONS
+        """
+
