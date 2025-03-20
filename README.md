@@ -1,4 +1,4 @@
-![hybrid image](https://github.com/ScottMastro/hybrid-pipeline/blob/master/hybrid.svg)
+![logo](https://github.com/ScottMastro/hybrid-pipeline/blob/master/images/hybrid.svg)
 
 ## Required data:
 
@@ -7,10 +7,13 @@
 
 In theory, other assemblies could be used. But the pipeline was created under the assumption that the query is accurate and highly fragmented, while the reference assembly is capable of resolving the low-complexity regions.
 
+![pipline details](https://github.com/ScottMastro/hybrid-pipeline/blob/master/images/pipeline.svg)
+
 # Example data
 
-Supernova and canu assemblies for sample HG002 can be found [at this zenodo record](https://zenodo.org/records/15059067).
-These are already purged.
+Supernova and canu assemblies for sample HG002 can be found [at this zenodo record](https://zenodo.org/records/15059067). These are already purged.
+
+Intermediate files and final hybrid assembly are also provided.
 
 # Full Pipeline Details 
 
@@ -38,9 +41,11 @@ snakemake -s hybrid-pipeline/scripts/blast_chunks.snakefile --config out=output_
 
 ## Step 2: Hybrid assembly steps (main script)
 
-> Note: supplying canu unitig data is optional but helps during scaffolding; a script to properly format the BED file is provided: 
+> Note: supplying canu unitig data is optional but helps during scaffolding
+A script to properly format the BED file is provided:
 `python hybrid-pipeline/scripts/clean_bed.py canu.unitigs.bed canu.unitigs.clean.bed`
 
 ```
 python hybrid-pipeline/src/hybrid.py --confident HG002_canu.unitigs.clean.bed -o output_dir {input.blocks} HG002_supernova.pseudohap.purged.fa.gz HG002_canu.contigs.purged.fa.gz
 ```
+The output is a haploid hybrid assembly that is a mix of both haplotypes. Subsequent steps can be used to phase contigs.
