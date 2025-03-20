@@ -1,11 +1,11 @@
 import re
 import sys
-sys.path.append('../..')
+sys.path.append('..')
 
 import utils.log as logger
 from structures.path import Path
 from structures.path import Fork
-import hybridtools.weld.aligner as aligner
+import weld.aligner as aligner
 
 OUTPUT_FILE_NAME = "gap_fill.bed"
 

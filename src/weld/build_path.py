@@ -1,11 +1,11 @@
 import sys
-sys.path.append("../..")
+sys.path.append("..")
 
 import utils.log as logger
 import structures.path as pathtools
 
-import hybridtools.weld.aligner as aligner
-import hybridtools.weld.gap_filler as filler
+import weld.aligner as aligner
+import weld.gap_filler as filler
 
 REORIENTATION_FILE_NAME = "inversions.txt"
 

@@ -2,7 +2,7 @@ import os
 
 REF_FASTA = config["r"]
 QUERY_FASTA = config["q"]
-OUTDIR = config["outdir"] +"/"
+OUTDIR = config["out"] +"/"
 
 localrules: all, split_query, combine_blast
 
@@ -14,27 +14,36 @@ scattergather:
 
 rule all:
     input: 
-	blocks=OUTDIR+"blastn.summary.txt"
+        blocks=OUTDIR+"blastn.summary.txt"
 
 rule make_blast_db:
     resources: mem=32
-    input:  REF_FASTA + ".purged.fa"
+    input:  REF_FASTA
     output: 
         nsq=temp("{dir}ref_db.nsq"),
         nhr=temp("{dir}ref_db.nhr"),
         nin=temp("{dir}ref_db.nin")
     shell:
-        "cat {input} | makeblastdb -in - -title ref_db -dbtype nucl -out {wildcards.dir}ref_db ; touch {wildcards.dir}ref_db"
+        """
+        # handle gzip
+        DECOMP_CMD="cat {input}"
+        [[ "{input}" == *.gz ]] && DECOMP_CMD="zcat {input}"
+        $DECOMP_CMD | makeblastdb -in - -title ref_db -dbtype nucl -out {wildcards.dir}ref_db
+        touch {wildcards.dir}ref_db
+        """
 
 rule split_query:
-    input: QUERY_FASTA + ".purged.fa"
+    input: QUERY_FASTA
     output:
         chunks=temp("{dir}query.1000bp.fa"),
         chunkcount=temp("{dir}count.txt")
     resources: mem=4
     shell:
         """
-        cat {input} | perl -nae 'if($_=~/^>/){{ if($.!=1){{ print "\\n"; }} print $_; }} else{{ chomp; print $_; }}' | \
+        # Define a command to handle decompression
+        DECOMP_CMD="cat {input}"
+        [[ "{input}" == *.gz ]] && DECOMP_CMD="zcat {input}"
+        $DECOMP_CMD | perl -nae 'if($_=~/^>/){{ if($.!=1){{ print "\\n"; }} print $_; }} else{{ chomp; print $_; }}' | \
         perl -nae 'BEGIN{{ $split='1000'; }} chomp; if($_=~/^>/){{ @id=@F; $f=$_; $i=1; $n=0; }} else{{ if($n==0){{ $n=length($_)/1000; @num=split(/\./, $n); if($num[1] ne "00" || $num ne ""){{ $n=$num[0]+1; }} }} for($l=0; $l<=length($_); $l+=$split){{ print ">predicted:".substr($id[0],1).":$n:part$i\\n".substr($_, $l, $split)."\\n"; $i++; }} }}' > {output.chunks} ; \
         n=`cat {output.chunks} | wc -l` ; n=$((n/2)) ; echo $n > {output.chunkcount}
         """

@@ -2,7 +2,7 @@ import sys
 sys.path.append("../..")
 
 import utils.log as logger
-import hybridtools.stitch.build_intervals as builder
+import stitch.build_intervals as builder
 
 '''
  The stitcher takes BLAST alignments between two assemblies

@@ -1,10 +1,10 @@
 import sys
-sys.path.append("../..")
+sys.path.append("..")
 
 import utils.log as logger
 import structures.path as pathtools
-import hybridtools.scaffold.build_scaffold as builder
-import hybridtools.scaffold.excluded_regions as salvager
+import scaffold.build_scaffold as builder
+import scaffold.excluded_regions as salvager
 
 '''
  The scaffolder takes welded paths, whose walk represents

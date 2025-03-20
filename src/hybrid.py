@@ -1,15 +1,23 @@
 import os
 import sys
+import parameters as param
 import utils.log as logger
 
 import utils.file_handler as io
 import utils.fasta_handler as fasta
 
-import hybridtools.stitch.stitcher as stitcher
-import hybridtools.weld.welder as welder
-import hybridtools.scaffold.scaffolder as scaffolder
+import stitch.stitcher as stitcher
+import weld.welder as welder
+import scaffold.scaffolder as scaffolder
 
 def main(param):
+
+    parser = param.set_hybrid_parameters()
+    parameters = param.get_hybrid_parameters(parser)
+
+    if not param.validate_hybrid_parameters(parameters):
+        parser.print_help()
+        sys.exit(1)
 
     if not os.path.exists(param.OUTPUT_DIR): os.mkdir(param.OUTPUT_DIR)
 

@@ -1,8 +1,8 @@
 import sys
-sys.path.append("../..")
+sys.path.append("..")
 
 import utils.log as logger
-import hybridtools.scaffold.critical_forks as critical_forks
+import scaffold.critical_forks as critical_forks
 import structures.path as pathtools
     
 #==================================================

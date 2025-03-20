@@ -1,6 +1,6 @@
 import copy
 import sys
-sys.path.append("../..")
+sys.path.append("..")
 
 import utils.log as logger
 import structures.region as rgn

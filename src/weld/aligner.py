@@ -1,8 +1,8 @@
 import sys
-sys.path.append('../../')
+sys.path.append('..')
 import utils.log as logger
 
-import hybridtools.weld.alignment_cutter as cutter
+import weld.alignment_cutter as cutter
 from structures.path import Fork
 
 #---- ssw aligner required for fast alignments ----

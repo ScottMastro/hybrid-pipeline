@@ -1,8 +1,8 @@
 import sys
-sys.path.append("../..")
+sys.path.append("..")
 
 import utils.log as logger
-import hybridtools.weld.build_path as builder
+import weld.build_path as builder
 
 '''
  The welder takes stitched data structures, representing
