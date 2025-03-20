@@ -9,7 +9,8 @@ Prerequirements:
 In theory, other assemblies could be used. But the pipeline was created under the assumption that the query is accurate and highly fragmented, while the reference assembly is capable of resolving the low-complexity regions.
 
 
-https://zenodo.org/records/15059067
+[This is an external link](https://zenodo.org/records/15059067)
+
 
 
 
