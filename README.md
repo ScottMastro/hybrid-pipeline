@@ -9,7 +9,7 @@ In theory, other assemblies could be used. But the pipeline was created under th
 
 # Example data
 
-Supernova and canu assemblies for sample HG002 can be found [at this zenodo record](https://zenodo.org/records/15059067). These are already purged.
+Supernova and canu assemblies for sample HG002 can be found [at this zenodo record](https://zenodo.org/records/15058963). These are already purged.
 
 Intermediate files and final hybrid assembly are also provided.
 
