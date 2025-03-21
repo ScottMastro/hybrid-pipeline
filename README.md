@@ -53,7 +53,7 @@ In the final step, the identified paths are connected to form scaffolds, effecti
 > Note: supplying canu unitig data is optional but helps during scaffolding. A script to properly format the BED file is provided: `python hybrid-pipeline/scripts/clean_bed.py canu.unitigs.bed canu.unitigs.clean.bed`
 
 ```
-python hybrid-pipeline/src/hybrid.py --confident HG002_canu.unitigs.clean.bed -o output_dir {input.blocks} HG002_supernova.pseudohap.purged.fa.gz HG002_canu.contigs.purged.fa.gz
+python hybrid-pipeline/src/hybrid.py --confident HG002_canu.unitigs.clean.bed -o output_dir HG002.blastn.summary.txt HG002_supernova.pseudohap.purged.fa.gz HG002_canu.contigs.purged.fa.gz
 ```
 The output is a haploid hybrid assembly that is a mix of both haplotypes. 
 
