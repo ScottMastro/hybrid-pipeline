@@ -1,5 +1,13 @@
 QREAD_PREFIX = "query_reads"
 
+GATK_JAR=gatk-package-4.0.0.0-local.jar
+PICARD_JAR=picard.jar
+PILON_JAR=pilon-1.23.jar
+
+FIX_10X_HETS="longranger_vcf_correct.py"
+TRIM_10X_BARCODE="trim_10x_barcode.py"
+SPLIT_10X_HAP="split_10x_hap.py"
+
 localrules: get_query_variants, query_polish_rename, hap_query_polish_rename, haplotype_iter_bam
 
 def add_slash(string):
@@ -135,7 +143,7 @@ rule polish_pilon:
     resources:
         mem=32
     shell:
-        "$PILON --genome {input.fasta} --frags {input.bam} --changes --tracks \
+        "$PILON_JAR --genome {input.fasta} --frags {input.bam} --changes --tracks \
                 --outdir {wildcards.dir} --output {wildcards.fasta}_{wildcards.reads}_pilon ; \
         mv {wildcards.dir}/{wildcards.fasta}_{wildcards.reads}_pilon.fasta {output} ; sed -i '1s/.*/>consensus/' {output} "
 
@@ -148,7 +156,7 @@ rule polish_pilon_final:
     resources:
         mem=32
     shell:
-        "$PILON --genome {input.fasta} --frags {input.bam} --changes --tracks --fix snps,indels \
+        "$PILON_JAR --genome {input.fasta} --frags {input.bam} --changes --tracks --fix snps,indels \
                 --outdir {wildcards.dir} --output {wildcards.fasta}_{wildcards.reads}_pilon; \
         mv {wildcards.dir}/{wildcards.fasta}_{wildcards.reads}_pilon.fasta {output} ; sed -i '1s/.*/>consensus/' {output} "
 
@@ -238,7 +246,7 @@ rule longranger_mkref:
       	"""
         PWD=`pwd` ; rm -r {output.ref} ; cd {wildcards.dir} 
         longranger mkref {wildcards.fasta}.fasta ; cd $PWD
-      	$PICARD CreateSequenceDictionary R={output.fa} O={output.dict} ; \
+      	$PICARD_JAR CreateSequenceDictionary R={output.fa} O={output.dict} ; \
       	touch {output.ref} ; touch {output.ref}/* ; touch {output.ref}/*/*
         """
 

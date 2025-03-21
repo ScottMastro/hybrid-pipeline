@@ -10,14 +10,9 @@ import stitch.stitcher as stitcher
 import weld.welder as welder
 import scaffold.scaffolder as scaffolder
 
-def main(param):
+def main():
 
-    parser = param.set_hybrid_parameters()
-    parameters = param.get_hybrid_parameters(parser)
-
-    if not param.validate_hybrid_parameters(parameters):
-        parser.print_help()
-        sys.exit(1)
+    param.get_parameters()
 
     if not os.path.exists(param.OUTPUT_DIR): os.mkdir(param.OUTPUT_DIR)
 
@@ -139,3 +134,6 @@ def main(param):
                       minSize=10000, compressNs=10, spacerNs=500)
     
     logger.FileLogger().flush_all()
+    
+if __name__ == "__main__":
+    main()

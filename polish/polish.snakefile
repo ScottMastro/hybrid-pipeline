@@ -1,13 +1,16 @@
 import os
 
+HIGH_CONF_HETS="high_conf_hets.py"
+CHR_COUNT="chr_count.py"
+
 ENV_FILE=config["env"]
 shell.prefix("source "+ENV_FILE+" ; ")
 
 QREAD_PREFIX = "query_reads"
 RREAD_PREFIX = "ref_reads"
 
-include: "Snakefile_polish_ref"
-include: "Snakefile_polish_query"
+include: "polish_ref.snakefile"
+include: "polish_query.snakefile"
 
 def add_slash(string): 
     if len(string) == 0: return "./"
@@ -26,10 +29,13 @@ SAMPLE = config["sample"]
 ITERS= str(config["iters"])
 TIG = config["tig"]
 
-localrules: fetch_hybrid_tig, rename_consensus, rename_hap_consensus, first_iter, next_iter, bgzip, done, remote_copy, fai
+# T2T assembly
+T2T = config["t2t"]
+
+localrules: fetch_hybrid_tig, rename_consensus, rename_hap_consensus, first_iter, next_iter, bgzip, done, fai
 
 rule all: 
-    input: OUTDIR+".done_compress"
+    input: OUTDIR+".done"
 
 rule bgzip:
     input: "{prefix}.vcf"
@@ -39,13 +45,6 @@ rule bgzip:
     resources: mem=4
     shell: "bgzip {input} ; tabix {output.gz}"
 
-'''
-rule temp_gunzip:
-    input: "{prefix}.fasta.gz"
-    output: temp("{prefix}.fasta")
-    resources: mem=4
-    shell: "gunzip -c {input} > {output}"
-'''
 
 rule fai:
     input: "{prefix}.fasta"
@@ -189,36 +188,6 @@ rule done:
         """
         samtools faidx {input.a}
         samtools faidx {input.b}
-        echo $CLEANUP ; ls $CLEANUP
-        cp $CLEANUP {wildcards.outdir}/cleanup.sh
-
-        PWD=`pwd` ;  cd {wildcards.outdir}
-        bash cleanup.sh ; rm cleanup.sh        
-        cd $PWD
         touch {output}
         """
-
-rule compress:
-    input:
-        "{outdir}/.done"
-    output:
-        "{outdir}/.done_compress"
-    resources: mem=6
-    shell:
-        """
-        cp $COMPRESS {wildcards.outdir}/compress.sh
-
-        PWD=`pwd` ;  cd {wildcards.outdir}
-        bash compress.sh """+SAMPLE+" "+TIG+""" ; rm compress.sh
-        cd $PWD
-	touch {output}
-        """
-
-rule remote_copy:
-    input:
-        OUTDIR + ".done"
-    output:
-        OUTDIR + ".done_remote"
-    shell:
-        "snakemake -s 1_snakemake/Snakefile_irods_upload --nolock --cores 1 --config sample="+SAMPLE+" tig="+TIG+" outdir="+OUTDIR+" ; touch {output}"
 

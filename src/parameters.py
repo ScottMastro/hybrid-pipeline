@@ -1,5 +1,8 @@
 import sys
+import argparse
 
+SOFTWARE_VERSION="v1.0.0"
+SOFTWARE_NAME="Hybrid Assembly Pipeline"
 #==================================================
 # Parameter class 
 #==================================================
@@ -44,10 +47,20 @@ class Parameters:
 # CLI help 
 #==================================================
 
-def set_hybrid_parameters(parser, defaultParameters=None):
+def get_parameters(defaultParameters=None):
 
-    p = Parameters() if defaultParameters is None else defaultParameters
+    p = Parameters()
+
+    parser = argparse.ArgumentParser(
+        prog=SOFTWARE_NAME,
+        description=f"A hybrid assembly tool for integrating supernova and canu assemblies. {SOFTWARE_VERSION}"
+    )
     
+    parser.add_argument("--version", 
+        action="store_true",
+        help="Show program's version number and exit."
+    )
+
     #Positional
     parser.add_argument("alignments", metavar="ALN", default=p.SUMMARY, nargs="?", 
                         help="Tab-separated output of BLAST aligner" )
@@ -99,16 +112,21 @@ def set_hybrid_parameters(parser, defaultParameters=None):
     parser.add_argument("--wait", type=bool, default=p.WAIT,
                     help="Wait for user input at high verbosity levels. Default=False")
 
-    return parser
+    return set_parameters(parser, defaultParameters)
 
 #==================================================
 # CLI parsing 
 #==================================================
 
-def get_hybrid_parameters(parser):
+def set_parameters(parser, defaultParameters=None):
 
-    p = Parameters()
-    args = parser.parse_args(sys.argv[2:])
+    p = Parameters() if defaultParameters is None else defaultParameters
+
+    args = parser.parse_args(sys.argv[1:])
+    
+    if args.version:
+        print(f"{SOFTWARE_NAME} {SOFTWARE_VERSION}")
+        sys.exit(0)
 
     p.QUERY_FA = args.qfasta
     p.REF_FA = args.rfasta
@@ -133,13 +151,17 @@ def get_hybrid_parameters(parser):
     p.VERBOSE = args.verbose
     p.WAIT = args.wait
     
+    if not validate_parameters(p):
+        parser.print_help()
+        sys.exit(1)
+    
     return p
 
 #==================================================
 # Parameter validation 
 #==================================================
 
-def validate_hybrid_parameters(p):
+def validate_parameters(p):
 
     if p.QUERY_FA is None: return False
     if p.REF_FA   is None: return False
