@@ -29,9 +29,9 @@ snakemake -s hybrid-pipeline/scripts/purge_dup.snakefile --config purgereads=/pa
 
 ## Step 1: BLASTn alignments
 
-This step splits the query assembly into 1 kp chunks, creates a BLAST database for the reference assembly, parallelizes BLAST searches, and aggregates results in a single TSV.
+This step splits the query assembly into 1 kb chunks, creates a BLAST database for the reference assembly, parallelizes BLAST searches, and aggregates results in a single TSV.
 
-Ensure `blastn` and `makeblastdb` are available.
+Ensure NCBI BLAST+ tools (`blastn` and `makeblastdb`) are installed and available.
 
 ```
 snakemake -s hybrid-pipeline/scripts/blast_chunks.snakefile --config out=output_dir q=HG002_supernova.pseudohap.purged.fa.gz r=HG002_canu.contigs.purged.fa.gz
@@ -50,9 +50,7 @@ To precisely align block ends, pairwise alignment is used to establish shared po
 ### Scaffolding paths
 In the final step, the identified paths are connected to form scaffolds, effectively linking contigs into longer scaffolds.
 
-> Note: supplying canu unitig data is optional but helps during scaffolding
-A script to properly format the BED file is provided:
-`python hybrid-pipeline/scripts/clean_bed.py canu.unitigs.bed canu.unitigs.clean.bed`
+> Note: supplying canu unitig data is optional but helps during scaffolding. A script to properly format the BED file is provided: `python hybrid-pipeline/scripts/clean_bed.py canu.unitigs.bed canu.unitigs.clean.bed`
 
 ```
 python hybrid-pipeline/src/hybrid.py --confident HG002_canu.unitigs.clean.bed -o output_dir {input.blocks} HG002_supernova.pseudohap.purged.fa.gz HG002_canu.contigs.purged.fa.gz
@@ -65,7 +63,7 @@ The output is a haploid hybrid assembly that is a mix of both haplotypes.
 
 The phasing pipeline is a complex multi-step process that integrates multiple tools, tailored specifically to the datasets used in this project. The Snakemake workflows and supporting scripts can be found in `hybrid-pipeline/polish/*.snakefile` and serve as documentation of the methodology, but likely require modification to run.
 
-First, `pbmm2` is used to align the original PacBio reads back to the hybrid assembly and [`SDA`](https://github.com/mrvollger/SDA) is used to identify and adjust for segmental duplications.`SDA denovo --ref {fasta} --input {bam} --dir ./sda -t 120`
+First, `pbmm2` is used to align the original PacBio reads back to the hybrid assembly and [`SDA`](https://github.com/mrvollger/SDA) is used to identify and adjust for segmental duplications.
 
 The process below is done on a per-scaffold basis:
 
@@ -76,10 +74,10 @@ The following steps are performed iteratively to refine the assembly:
 - Align 10X Genomics reads using `bwa`.
 - Polish with `pilon`.
 
-From this process, a consensus assembly is created. Reads are again aligned against this consensus, `longranger` (10XG) and `longshot` (PacBio) are used to call variants. High confident heterozygous variants (shared between the two callsets) are identified, `whatshap` is used to phase all the reads.
+From this process, a consensus assembly is created. Reads are again aligned against this consensus, `longranger` (10XG) and `longshot` (PacBio) are used to call variants. High-confidence heterozygous variants (shared between the two callsets) are identified, `whatshap` is used to phase all the reads.
 
-After read phasing, the iterative polishing process is repeated using haplotype-specific reads. This step refines each haplotype separately and can be repeated multiple times until convergence. The final output consists of two haplotype-resolved scaffold.
+After read phasing, the iterative polishing process is repeated using haplotype-specific reads. This step refines each haplotype separately and can be repeated multiple times until convergence. The final output consists of two haplotype-resolved scaffolds.
 
 The complete phasing pipeline is visually represented below:
 
-![pipline details](https://github.com/ScottMastro/hybrid-pipeline/blob/master/images/pipeline.svg)
+![pipeline details](https://github.com/ScottMastro/hybrid-pipeline/blob/master/images/pipeline.svg)
